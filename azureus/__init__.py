@@ -1,4 +1,8 @@
-"""Azureus — educational research platform for systematic equity strategies on Hong Kong equities."""
+"""Azureus.
+
+Open-source educational research platform for systematic equity strategies
+on Hong Kong equities.
+"""
 
 from __future__ import annotations
 
