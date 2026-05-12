@@ -287,13 +287,15 @@ Pause and check:
 
 > **Update this section as phases progress.**
 
-**Current phase:** Phase 0 — Foundation (Days 1–4)
+**Current phase:** Phase 0 (local foundation complete; production deploy deferred) → starting Phase 1 — Data Layer
 
-**Phase 0 goal:** Repo set up, dev environment working, deployment pipeline working, "Hello World" deployed at `azureus.tech` with TLS.
+**Phase 0 status (as of 2026-05-12):** Local foundation done — public GitHub repo, two-job CI both green, local Docker Compose for Postgres+TimescaleDB and Redis (verified healthy), FastAPI `/api/v1/health` and `/api/v1/version`, Vite+React+TanStack Query frontend reading the health endpoint via Vite proxy. **Production deployment is deferred:** Azure for Students region policy blocked VM provisioning in every region attempted. Decision (developer): pause deploy work, continue local development, re-evaluate cloud provider (likely return to DigitalOcean or pick a region-permissive alternative) before sealing Phase 0.
 
-**Phase 0 success criterion:** A stranger visiting `azureus.tech` sees a working page. The CI badge on GitHub is green. You can push a one-line change and watch it deploy automatically.
+**Phase 0 open items (must close before `v0.1.0-foundation` tag):** cloud provider final selection, VM provisioning, get.tech DNS A-records, Caddy + TLS + `docker-compose.prod.yml`, `services/base/Dockerfile` + `services/api/Dockerfile`, `.github/workflows/deploy.yml`, UptimeRobot monitor, screenshots.
 
-**Do not start Phase 1 work** (data layer) until Phase 0 success criterion is met.
+**Phase 0 success criterion (unchanged):** A stranger visiting `azureus.tech` sees a working React page reading a live `/api/v1/health`. TLS valid. CI badge green. Push-to-main auto-deploys in <8 min.
+
+**Phase 1 entry condition:** continuing into Phase 1 is an *explicit deferral*, not silent drift. The deployment items above reopen as soon as a host is selected; track them as carryover, do not let them quietly disappear.
 
 ---
 

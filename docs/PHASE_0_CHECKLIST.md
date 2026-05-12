@@ -116,6 +116,14 @@
 
 ---
 
+## ⏸ Days 3–4 deferred (2026-05-12)
+
+Azure for Students region policy blocked VM provisioning in every region attempted (Southeast Asia, plus a second region; East US 2 not yet retried). Days 3–4 work is **paused, not cancelled** — the items below remain Phase 0 acceptance criteria and must be completed before the `v0.1.0-foundation` tag and Phase 0 sign-off. Local development continues into Phase 1; production deploy reopens once a cloud provider is selected (likely fallback: DigitalOcean droplet per the original plan, restoring `docs/ARCHITECTURE.md` §7 to its pre-Azure wording).
+
+When you re-open this section, also revisit `CLAUDE.md` Stack table → `Deployment` row.
+
+---
+
 ## Day 3 — Droplet, DNS, TLS, First Deployment
 
 ### Azure VM
