@@ -118,28 +118,44 @@
 
 ## Day 3 — Droplet, DNS, TLS, First Deployment
 
-### DigitalOcean droplet
+### Azure VM
 
-- [ ] **Create droplet:**
-  - Region: closest to HK (Singapore is the standard choice)
-  - Image: Ubuntu 24.04 LTS
-  - Plan: Basic, $24/month (2 vCPU, 4 GB RAM, 80 GB SSD)
-  - Authentication: SSH key (add your local SSH public key)
-  - Hostname: `azureus-prod`
-  - Add monitoring: yes (free)
-  - Enable backups: optional ($4.80/month, defer unless you want it)
-- [ ] **SSH to the droplet** as root. Verify connection works.
-- [ ] **Create a deploy user:** `adduser deploy`, `usermod -aG sudo deploy`, copy SSH key into `/home/deploy/.ssh/authorized_keys`.
-- [ ] **Disable root SSH and password auth:** edit `/etc/ssh/sshd_config`, set `PermitRootLogin no`, `PasswordAuthentication no`. Restart sshd. Verify you can still log in as `deploy`.
-- [ ] **Install Docker on the droplet:** follow Docker's official Ubuntu install script. Add `deploy` user to `docker` group.
-- [ ] **Set up firewall:** `ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw enable`.
-- [ ] **Note the droplet's public IP.** Save it somewhere accessible.
+- [ ] **Sign in to Azure Portal** at https://portal.azure.com using the Microsoft account registered for Azure for Students.
+- [ ] **Create the VM** (Create a resource → Virtual machine → Create). Basics tab:
+  - **Subscription:** Azure for Students
+  - **Resource group:** Create new → `azureus-rg`
+  - **Virtual machine name:** `azureus-prod`
+  - **Region:** `(Asia Pacific) Southeast Asia` (Singapore — closest to HK)
+  - **Availability options:** No infrastructure redundancy required
+  - **Security type:** Standard
+  - **Image:** `Ubuntu Server 24.04 LTS - x64 Gen2`
+  - **VM architecture:** x64
+  - **Size:** click "See all sizes", search `B1s`, select `Standard_B1s` (1 vCPU, 1 GiB RAM — free for 12 months under Azure for Students)
+  - **Authentication type:** SSH public key
+  - **Username:** `deploy`
+  - **SSH public key source:** Use existing public key
+  - **SSH public key:** paste the contents of `~/.ssh/id_ed25519.pub` (if it doesn't exist, run `ssh-keygen -t ed25519 -C "yelamanvalikhanovich@gmail.com"` first, accept defaults, then `cat ~/.ssh/id_ed25519.pub`)
+  - **Public inbound ports:** Allow selected ports → check SSH (22), HTTP (80), HTTPS (443)
+- [ ] **Disks tab:** OS disk type `Standard SSD (LRS)`, size 30 GiB (default). Defaults elsewhere.
+- [ ] **Networking / Management / Monitoring / Advanced / Tags:** defaults are fine.
+- [ ] **Review + create → Create.** Provisioning takes ~2 minutes.
+- [ ] **Note the public IP** from the VM Overview page. Save it somewhere accessible (and tell me — I need it for DNS + deploy workflow).
+- [ ] **SSH to the VM:** `ssh deploy@<public-ip>`. Accept the host key fingerprint on first connect.
+- [ ] **Install Docker on the VM:**
+  ```
+  curl -fsSL https://get.docker.com | sudo sh
+  sudo usermod -aG docker deploy
+  exit
+  ```
+  Reconnect (`ssh deploy@<public-ip>`) so the group change takes effect. Verify: `docker --version && docker compose version`.
+- [ ] **Host firewall** (defense in depth on top of Azure NSG): `sudo ufw allow 22 && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable`.
 
-### DNS
+### DNS (at get.tech)
 
-- [ ] **Point `azureus.tech` to the droplet IP:** add an A record. TTL 300.
-- [ ] **Point `www.azureus.tech`** to the same IP, or as a CNAME to `azureus.tech`.
-- [ ] **Verify DNS propagation:** `dig azureus.tech` and `dig www.azureus.tech` from your laptop. Should return the droplet IP. May take 5–60 minutes.
+- [ ] **Log in to get.tech** → My Domains → `azureus.tech` → Manage DNS / DNS Records.
+- [ ] **Add an A record for apex:** Type `A`, Host `@` (or blank), Value `<VM public IP>`, TTL 300.
+- [ ] **Add an A record for www:** Type `A`, Host `www`, Value `<VM public IP>`, TTL 300.
+- [ ] **Verify propagation:** `dig azureus.tech +short` and `dig www.azureus.tech +short` from your laptop. Should print the VM IP. Allow 5–60 min.
 
 ### Caddy + initial production compose
 

@@ -147,7 +147,7 @@ The project shape — *educational research platform with showcase strategies an
 ### 1.14 Constraints
 
 - **Time:** ~2 months for v1 (~250–300 hours estimated). Phase 2 may extend timeline.
-- **Budget:** ~$200/year DigitalOcean credit (GitHub Student Pack), domain owned. Production cost ~$29/month or $348/year — net ~$148/year out of pocket, accepted as worth-it for portfolio benefit.
+- **Budget:** $100 Azure credit + 12-month free B1S Linux VM (Azure for Students), domain owned. Phases 0–3 run on free B1S ($0/month). At Phase 4 (Strategy 2 / LightGBM training) the VM is resized to B2s (~$30/month, 2 vCPU / 4 GB); the $100 credit covers ~3 months post-upgrade. Net first-year out-of-pocket: ~$200, accepted as worth-it for portfolio benefit.
 - **Data licensing:** Bloomberg data is research-only. Cannot be redistributed, deployed publicly, or committed to the repo.
 - **Solo developer.** Flexible schedule, ~5–6 hrs/day, 6 days/week.
 
@@ -157,11 +157,11 @@ The project shape — *educational research platform with showcase strategies an
 
 ### 2.1 Service Topology
 
-**Modular monolith with separate worker process**, deployed as 7 containers on a single DigitalOcean droplet:
+**Modular monolith with separate worker process**, deployed as 7 containers on a single Azure VM:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│         DigitalOcean Droplet ($24/month, 2 vCPU, 4GB)       │
+│      Azure VM (B1S free → B2s at Phase 4, 1–2 vCPU)         │
 │                                                             │
 │  ┌──────────┐                                               │
 │  │  caddy   │  TLS, reverse proxy, serves frontend statics  │
@@ -850,7 +850,7 @@ Single DigitalOcean droplet, $24/month tier (2 vCPU, 4 GB RAM, 80 GB SSD):
 
 API and worker share a base Docker image (`azureus-base`). Frontend builds to static files in CI and is served by Caddy via a mounted volume.
 
-**Resource expectations:** ~1.3 GB idle, ~3.0 GB peak (Strategy 2 training). $24/month tier is the floor.
+**Resource expectations:** ~1.3 GB idle (all 7 containers), ~3.0 GB peak (Strategy 2 training). Phases 0–3 fit on B1S (1 GB) by running only the subset of containers needed per phase. Phase 4+ requires B2s (4 GB) — Strategy 2 training is the resize trigger.
 
 ### 7.2 Local vs. Production
 
@@ -887,8 +887,8 @@ Branch model: `main` is always deployable; feature branches via PR; semver tags 
 
 ### 7.6 Backups
 
-- **Postgres:** daily `pg_dump`, compressed, uploaded to DigitalOcean Spaces ($5/month). Retained 30 days
-- **MLflow artifacts:** weekly rsync to Spaces
+- **Postgres:** daily `pg_dump`, compressed, uploaded to Azure Blob Storage (Hot tier; well under the 5 GB free quota at our scale). Retained 30 days
+- **MLflow artifacts:** weekly upload to Azure Blob Storage
 - **Production `.env`:** password manager
 - Restore procedure: `docs/disaster-recovery.md`
 
@@ -907,13 +907,14 @@ Standard git-driven flow: commit → push → PR → CI green → merge → auto
 
 ### 7.9 Total Infra Cost
 
-$24 (droplet) + $5 (Spaces) = **$29/month or $348/year**.
-GitHub Student Pack DO credit: $200/year.
-Net out-of-pocket: ~$148/year.
+**Phases 0–3:** $0 (B1S free tier, Azure Blob Storage within free quota).
+**Phase 4+:** ~$30/month (B2s VM upgrade for LightGBM training).
+Azure for Students credit: $100 (covers ~3 months of B2s post-upgrade).
+Net first-year out-of-pocket: ~$200, primarily Azure VM costs after credit exhausts.
 
 ### 7.10 Hard-to-Reverse Decisions
 
-1. Single-droplet architecture
+1. Single-VM architecture (Azure for v1)
 2. Caddy as TLS terminator
 3. GHCR for images
 4. Postgres in a container (not managed DB)
@@ -1021,7 +1022,7 @@ These are the decisions where changing course later is genuinely expensive. Get 
 - Strategy interface from day one
 - Monorepo, multi-Dockerfile
 - MIT license, public repo
-- Single droplet for v1
+- Single VM for v1
 
 **System Architecture:**
 - Async job queue universally
@@ -1058,7 +1059,7 @@ These are the decisions where changing course later is genuinely expensive. Get 
 - URL-driven backtest pages
 
 **DevOps:**
-- Single-droplet architecture
+- Single-VM architecture
 - Caddy as TLS terminator
 - GHCR for images
 - Postgres in container (not managed)

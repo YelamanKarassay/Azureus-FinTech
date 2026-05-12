@@ -52,7 +52,7 @@ This project is being built with deliberate trade-offs. Defaults from web tutori
 | Charts | Plotly.js (via react-plotly.js) | Recharts, Chart.js, D3, visx |
 | Container runtime | Docker + Docker Compose | k8s, Swarm, Nomad |
 | TLS / reverse proxy | Caddy | nginx, Traefik, HAProxy |
-| Deployment | DigitalOcean droplet (single) | AWS, GCP, multi-region |
+| Deployment | Azure VM (single) | AWS, GCP, multi-region |
 | CI/CD | GitHub Actions | CircleCI, GitLab CI, Jenkins |
 | Container registry | GitHub Container Registry | Docker Hub, ECR |
 
