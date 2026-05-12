@@ -15,8 +15,8 @@
 - [x] `alembic/versions/0001_initial_schema.py` — tables, TimescaleDB hypertables, §3.6 indexes
 - [x] `tests/test_migrations.py` — apply / downgrade / re-apply against ephemeral DB
 - [x] Migration runs cleanly locally (`uv run alembic upgrade head` + tests pass)
-- [ ] Commit + push, CI green
-- [ ] Update `.env.example` if any new vars were added (already covered)
+- [x] Commit + push, CI green (run 25713708892, 2026-05-12)
+- [x] `.env.example` updated — switched to `localhost` hostnames for host-side dev
 
 **Deferred to a later migration:** `feature_cache` hypertable (column set depends on Phase 3 feature-engineering work).
 
