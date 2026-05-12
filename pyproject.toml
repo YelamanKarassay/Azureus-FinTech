@@ -1,0 +1,104 @@
+[project]
+name = "azureus"
+version = "0.0.1"
+description = "Open-source educational research platform for systematic equity strategies on Hong Kong equities."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Yelaman Valikhanovich" }]
+keywords = ["quant", "backtesting", "hong-kong", "equities", "fintech"]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "asyncpg>=0.30",
+    "psycopg[binary]>=3.2",
+    "redis>=5.0",
+    "rq>=1.16",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "pandera>=0.20",
+    "pandas>=2.2",
+    "numpy>=1.26",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "httpx>=0.27",
+    "pre-commit>=4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["azureus"]
+
+# ---- Ruff ----------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "PT",  # flake8-pytest-style
+    "SIM", # flake8-simplify
+    "ARG", # flake8-unused-arguments
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ARG", "N802"]
+"__init__.py" = ["F401"]
+
+# ---- Mypy ----------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["azureus"]
+exclude = ["alembic/versions"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pandera.*", "rq.*", "plotly.*"]
+ignore_missing_imports = true
+
+# ---- Pytest --------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:pkg_resources",
+]
+
+[tool.coverage.run]
+source = ["azureus"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

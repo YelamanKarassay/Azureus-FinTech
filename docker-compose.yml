@@ -1,0 +1,37 @@
+services:
+  postgres:
+    build:
+      context: ./services/postgres
+    container_name: azureus-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-azureus}
+      POSTGRES_USER: ${POSTGRES_USER:-azureus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-azureus} -d ${POSTGRES_DB:-azureus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: azureus-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

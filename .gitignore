@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# uv
+.python-version
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+.pnpm-store/
+
+# Docker
+docker-compose.override.yml
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment files (NEVER commit real secrets)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Bloomberg-sourced data — NEVER commit (per CLAUDE.md Rule 7)
+data/bloomberg/
+data/raw/
+*.bbg
+*.bloomberg
+*.bbg.xlsx
+
+# Databases / local stores
+*.db
+*.sqlite
+*.sqlite3
+
+# MLflow
+mlruns/
+mlflow_artifacts/
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
