@@ -1,25 +1,15 @@
 """Migration tests — verify the initial schema applies, rolls back, and re-applies cleanly.
 
-Requires a running Postgres+TimescaleDB instance with `DATABASE_URL_SYNC` set
-in the environment (loaded from `.env` via `azureus.config.get_settings()`).
-Skipped if the env var is empty, so the rest of the test suite stays green
-in CI environments without Postgres.
-
-Each test provisions a uniquely-named ephemeral database against the existing
-Postgres server (the docker-compose container locally) and drops it after.
+The `ephemeral_database` fixture is defined in `tests/conftest.py`. Tests are
+skipped automatically when `DATABASE_URL_SYNC` is unset (CI without Postgres).
 """
 
 from __future__ import annotations
 
-import uuid
-from collections.abc import Iterator
-
-import pytest
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 
 from alembic import command
-from azureus.config import get_settings
 
 REQUIRED_TABLES = {
     "tickers",
@@ -44,58 +34,10 @@ REQUIRED_INDEXES = {
 }
 
 
-def _split_server_and_db(url: str) -> tuple[str, str]:
-    """Split a Postgres URL into (server-prefix, database-name)."""
-    server, db = url.rsplit("/", 1)
-    return server, db
-
-
 def _alembic_config(url: str) -> Config:
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", url)
     return cfg
-
-
-@pytest.fixture
-def ephemeral_database() -> Iterator[str]:
-    """Provision a uniquely-named test database; drop it after the test."""
-    settings = get_settings()
-    if not settings.database_url_sync:
-        pytest.skip("DATABASE_URL_SYNC not set — skipping migration tests")
-
-    server_url, _ = _split_server_and_db(settings.database_url_sync)
-    test_db = f"test_azureus_{uuid.uuid4().hex[:8]}"
-    test_url = f"{server_url}/{test_db}"
-    admin_url = f"{server_url}/postgres"
-
-    admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
-    with admin_engine.connect() as conn:
-        conn.execute(text(f'CREATE DATABASE "{test_db}"'))
-
-    # Pre-install timescaledb in the new DB using autocommit. The migration
-    # also runs `CREATE EXTENSION IF NOT EXISTS`, but doing it here outside
-    # any transaction guarantees the extension is fully usable before
-    # Alembic's transactional DDL starts — TimescaleDB doesn't reliably
-    # install in the same transaction that then calls `create_hypertable`.
-    bootstrap_engine = create_engine(test_url, isolation_level="AUTOCOMMIT")
-    with bootstrap_engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
-    bootstrap_engine.dispose()
-
-    try:
-        yield test_url
-    finally:
-        with admin_engine.connect() as conn:
-            # Terminate lingering connections so DROP DATABASE doesn't block.
-            conn.execute(
-                text(
-                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                    "WHERE datname = :db AND pid <> pg_backend_pid()"
-                ),
-                {"db": test_db},
-            )
-            conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db}"'))
-        admin_engine.dispose()
 
 
 def test_migration_creates_full_schema(ephemeral_database: str) -> None:

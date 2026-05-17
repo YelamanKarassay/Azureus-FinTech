@@ -38,11 +38,21 @@
 
 ## Days 7–8 — `YFinanceDataSource` + Pandera + first ingestion
 
-- [ ] Add `yfinance` to dependencies (locked stack table addition — confirm before adding)
-- [ ] `azureus/data/sources/yfinance_source.py` — implements `DataSource` against our Postgres tables (reads from DB; ingestion populates them)
-- [ ] Pandera schema for price DataFrames (`azureus/data/validators.py`): types, columns, nullability, `high >= low`, positive prices, no future dates, no duplicate `(provider, ticker, date)`
-- [ ] `azureus/pipelines/ingest_prices_free.py` — Prefect flow (in-process; Prefect server container deferred to Phase 2): fetch yfinance bars for one HSI ticker, validate, upsert via `INSERT ... ON CONFLICT DO UPDATE`, write `ingestion_runs` row
-- [ ] Test: ingest 30 days for `0700.HK`, query it back, assert clean data
+- [x] Added `yfinance>=0.2.50` and `prefect>=3.1` (both pre-sanctioned in ARCHITECTURE §3.3 / Stack table)
+- [x] `azureus/data/sources/yfinance_source.py` — `YFinanceDataSource` (read) + `fetch_prices_from_yfinance` (write helper). Phase 1 stubs raise `NotImplementedError` for fundamentals / macro / metrics
+- [x] `azureus/data/validators.py` — `PRICES_SCHEMA` Pandera DataFrameSchema: types, providers whitelist, `high >= low`, positive prices, `Int64` volume, no future dates, no duplicate `(provider, ticker, date)`, strict columns
+- [x] `azureus/utils/reproducibility.py` — git SHA, git_status_clean, uv.lock hash for `ingestion_runs.config`
+- [x] `azureus/pipelines/ingest_prices_free.py` — Prefect 3 flow with `@flow`/`@task` decorators (in-process, no server). Fetch → Pandera validate → `INSERT ... ON CONFLICT (pk_prices) DO UPDATE`. Always writes one `ingestion_runs` row, even on failure.
+- [x] `tests/conftest.py` — shared `ephemeral_database` and `migrated_database` fixtures, `prefect_test_harness` auto-use, synthetic prices DataFrame
+- [x] `tests/test_validators.py` — 8 Pandera unit tests (clean df + 7 negative cases)
+- [x] `tests/test_ingest_prices_free.py` — 4 E2E tests: success path, idempotency on re-ingest, failure-path lineage row, DataSource read-back
+
+**Locked decisions on this PR:**
+- Internal canonical ticker format: `0700.HK` (yfinance form). Bloomberg translation deferred to Phase 5.
+- yfinance `auto_adjust=False` → raw OHLC plus `adjusted_close` column. Adjusted close is canonical for return calculations (§4.6).
+- Rows with null `close` are dropped at the fetch layer; we never persist a bar without a close.
+- Prefect server container deferred to Phase 2; flows run in-process. Tests use `prefect_test_harness` (ephemeral SQLite).
+- `pytest.PytestUnraisableExceptionWarning` ignored in `pyproject.toml` — async-engine cleanup at process exit is unreliable; production code uses async context managers that close cleanly.
 
 ---
 
