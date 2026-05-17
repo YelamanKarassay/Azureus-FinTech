@@ -24,10 +24,15 @@
 
 ## Day 6 — DataSource Protocol + DB engines + Pydantic schemas
 
-- [ ] `azureus/data/db.py` — add async (asyncpg) and sync (psycopg) engines + `AsyncSessionLocal`
-- [ ] `azureus/data/schemas.py` — Pydantic models for internal data shapes (Price, MacroValue, Fundamental, UniverseMember, etc.) — distinct from ORM models
-- [ ] `azureus/data/sources/base.py` — `DataSource` Protocol per §3.4 with every method (`get_universe`, `get_universe_history`, `get_prices`, `get_fundamentals`, `get_fundamentals_history`, `get_macro`, `list_available_tickers`, `list_available_metrics`)
-- [ ] Smoke test: open async + sync sessions against the migrated DB, run `SELECT 1`
+- [x] `azureus/data/db.py` — async (asyncpg) and sync (psycopg) engines, sessionmakers, `async_session` / `sync_session` context managers (lazy via `lru_cache` so imports don't fail without env vars)
+- [x] `azureus/data/schemas.py` — Pydantic v2 frozen models: `TickerMetadata`, `PriceBar`, `Fundamental`, `MacroValue`, `UniverseMember`
+- [x] `azureus/data/sources/base.py` — `DataSource` Protocol per §3.4 with every method, plus locked return-shape convention (long DataFrames for time-series, `list[str]` for reference)
+- [x] Smoke test: `tests/test_db_connection.py` — 3 tests (sync `SELECT 1`, async `SELECT 1`, timescaledb extension check); auto-skips without `DATABASE_URL_SYNC`
+- [x] Dependency additions: `sqlalchemy[asyncio]` extra (pulls `greenlet`), `pandas-stubs` dev dep
+
+**Locked decisions on this PR:**
+- DataSource time-series methods return long-format `pd.DataFrame`; reference methods return `list[str]`; PIT fundamentals snapshot returns long-format `pd.DataFrame`.
+- Engines/sessions are lazy `lru_cache` factories so module imports never fail on env-less environments.
 
 ---
 
