@@ -1,0 +1,4 @@
+ticker,name,exchange,sector,industry,currency,listed_date
+TEST.HK,Test Holdings,HKEX,Financials,Diversified Banks,HKD,
+LATE.HK,Late Listing Corp,HKEX,Information Technology,Software,HKD,2022-05-10
+MIN.HK,Minimal Fields Co,HKEX,,,HKD,

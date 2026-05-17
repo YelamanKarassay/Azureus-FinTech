@@ -1,0 +1,70 @@
+ticker,name,exchange,sector,industry,currency,listed_date
+0001.HK,CK Hutchison Holdings,HKEX,Industrials,Industrial Conglomerates,HKD,
+0002.HK,CLP Holdings,HKEX,Utilities,Electric Utilities,HKD,
+0003.HK,Hong Kong & China Gas,HKEX,Utilities,Gas Utilities,HKD,
+0005.HK,HSBC Holdings,HKEX,Financials,Diversified Banks,HKD,
+0006.HK,Power Assets Holdings,HKEX,Utilities,Electric Utilities,HKD,
+0011.HK,Hang Seng Bank,HKEX,Financials,Regional Banks,HKD,
+0012.HK,Henderson Land Development,HKEX,Real Estate,Real Estate Operating Companies,HKD,
+0016.HK,Sun Hung Kai Properties,HKEX,Real Estate,Real Estate Operating Companies,HKD,
+0017.HK,New World Development,HKEX,Real Estate,Real Estate Operating Companies,HKD,
+0027.HK,Galaxy Entertainment Group,HKEX,Consumer Discretionary,Casinos & Gaming,HKD,
+0066.HK,MTR Corporation,HKEX,Industrials,Passenger Ground Transportation,HKD,
+0083.HK,Sino Land,HKEX,Real Estate,Real Estate Operating Companies,HKD,
+0101.HK,Hang Lung Properties,HKEX,Real Estate,Real Estate Operating Companies,HKD,
+0175.HK,Geely Automobile Holdings,HKEX,Consumer Discretionary,Automobile Manufacturers,HKD,
+0241.HK,Alibaba Health Information Technology,HKEX,Health Care,Health Care Technology,HKD,
+0267.HK,CITIC Limited,HKEX,Industrials,Industrial Conglomerates,HKD,
+0288.HK,WH Group,HKEX,Consumer Staples,Packaged Foods & Meats,HKD,
+0291.HK,China Resources Beer,HKEX,Consumer Staples,Brewers,HKD,
+0386.HK,China Petroleum & Chemical (Sinopec),HKEX,Energy,Integrated Oil & Gas,HKD,
+0388.HK,Hong Kong Exchanges and Clearing,HKEX,Financials,Financial Exchanges & Data,HKD,
+0688.HK,China Overseas Land & Investment,HKEX,Real Estate,Real Estate Development,HKD,
+0700.HK,Tencent Holdings,HKEX,Communication Services,Interactive Media & Services,HKD,
+0762.HK,China Unicom (Hong Kong),HKEX,Communication Services,Integrated Telecommunication Services,HKD,
+0823.HK,Link REIT,HKEX,Real Estate,Retail REITs,HKD,
+0857.HK,PetroChina,HKEX,Energy,Integrated Oil & Gas,HKD,
+0883.HK,CNOOC,HKEX,Energy,Oil & Gas Exploration & Production,HKD,
+0939.HK,China Construction Bank,HKEX,Financials,Diversified Banks,HKD,
+0941.HK,China Mobile,HKEX,Communication Services,Wireless Telecommunication Services,HKD,
+0992.HK,Lenovo Group,HKEX,Information Technology,Technology Hardware Storage & Peripherals,HKD,
+1038.HK,CK Infrastructure Holdings,HKEX,Utilities,Multi-Utilities,HKD,
+1044.HK,Hengan International Group,HKEX,Consumer Staples,Household Products,HKD,
+1093.HK,CSPC Pharmaceutical Group,HKEX,Health Care,Pharmaceuticals,HKD,
+1109.HK,China Resources Land,HKEX,Real Estate,Real Estate Development,HKD,
+1113.HK,CK Asset Holdings,HKEX,Real Estate,Real Estate Operating Companies,HKD,
+1177.HK,Sino Biopharmaceutical,HKEX,Health Care,Pharmaceuticals,HKD,
+1209.HK,China Resources Mixc Lifestyle Services,HKEX,Real Estate,Real Estate Services,HKD,2020-12-09
+1211.HK,BYD Company,HKEX,Consumer Discretionary,Automobile Manufacturers,HKD,
+1299.HK,AIA Group,HKEX,Financials,Life & Health Insurance,HKD,
+1378.HK,China Hongqiao Group,HKEX,Materials,Aluminum,HKD,
+1398.HK,Industrial and Commercial Bank of China,HKEX,Financials,Diversified Banks,HKD,
+1810.HK,Xiaomi Corporation,HKEX,Information Technology,Technology Hardware Storage & Peripherals,HKD,2018-07-09
+1876.HK,Budweiser Brewing Company APAC,HKEX,Consumer Staples,Brewers,HKD,
+1928.HK,Sands China,HKEX,Consumer Discretionary,Casinos & Gaming,HKD,
+1997.HK,Wharf Real Estate Investment,HKEX,Real Estate,Real Estate Operating Companies,HKD,
+2007.HK,Country Garden Holdings,HKEX,Real Estate,Real Estate Development,HKD,
+2015.HK,Li Auto,HKEX,Consumer Discretionary,Automobile Manufacturers,HKD,2021-08-12
+2018.HK,AAC Technologies Holdings,HKEX,Information Technology,Electronic Components,HKD,
+2020.HK,Anta Sports Products,HKEX,Consumer Discretionary,Apparel Accessories & Luxury Goods,HKD,
+2269.HK,WuXi Biologics (Cayman),HKEX,Health Care,Life Sciences Tools & Services,HKD,
+2313.HK,Shenzhou International Group Holdings,HKEX,Consumer Discretionary,Apparel Accessories & Luxury Goods,HKD,
+2318.HK,Ping An Insurance,HKEX,Financials,Multi-line Insurance,HKD,
+2319.HK,China Mengniu Dairy,HKEX,Consumer Staples,Packaged Foods & Meats,HKD,
+2331.HK,Li Ning,HKEX,Consumer Discretionary,Apparel Accessories & Luxury Goods,HKD,
+2382.HK,Sunny Optical Technology,HKEX,Information Technology,Electronic Components,HKD,
+2388.HK,BOC Hong Kong Holdings,HKEX,Financials,Diversified Banks,HKD,
+2628.HK,China Life Insurance,HKEX,Financials,Life & Health Insurance,HKD,
+2688.HK,ENN Energy Holdings,HKEX,Utilities,Gas Utilities,HKD,
+2899.HK,Zijin Mining Group,HKEX,Materials,Gold,HKD,
+3690.HK,Meituan,HKEX,Consumer Discretionary,Internet & Direct Marketing Retail,HKD,2018-09-20
+3968.HK,China Merchants Bank,HKEX,Financials,Diversified Banks,HKD,
+3988.HK,Bank of China,HKEX,Financials,Diversified Banks,HKD,
+6098.HK,Country Garden Services Holdings,HKEX,Real Estate,Real Estate Services,HKD,2018-06-19
+6618.HK,JD Health International,HKEX,Health Care,Health Care Technology,HKD,2020-12-08
+6862.HK,Haidilao International Holding,HKEX,Consumer Discretionary,Restaurants,HKD,2018-09-26
+9618.HK,JD.com,HKEX,Consumer Discretionary,Internet & Direct Marketing Retail,HKD,2020-06-18
+9633.HK,Nongfu Spring,HKEX,Consumer Staples,Soft Drinks & Non-alcoholic Beverages,HKD,2020-09-08
+9888.HK,Baidu,HKEX,Communication Services,Interactive Media & Services,HKD,2021-03-23
+9988.HK,Alibaba Group Holding,HKEX,Consumer Discretionary,Internet & Direct Marketing Retail,HKD,2019-11-26
+9999.HK,NetEase,HKEX,Communication Services,Interactive Home Entertainment,HKD,2020-06-11

@@ -58,9 +58,16 @@
 
 ## Day 9 — Universe membership + tickers seed
 
-- [ ] `data/universe/hsi_membership.csv` — committed static CSV of HSI historical constituents (derived from Bloomberg; treated as Phase 1 reference data, NOT Bloomberg-sourced live data per Rule 7)
-- [ ] `scripts/seed_tickers.py` and `scripts/seed_universe.py` — bulk-load reference data
-- [ ] Document the residual survivorship-bias limitation of the free-source CSV in `azureus/data/sources/README.md`
+- [x] `data/universe/tickers.csv` (69 names) + `data/universe/hsi_members.csv` (69 rows) — Option B per Day 9 plan: current HSI members + 12 known late additions with HK listing dates as start_date
+- [x] `scripts/seed_tickers.py` and `scripts/seed_universe.py` — idempotent UPSERT via `ON CONFLICT`, exposed as `python -m scripts.<name>` with `--csv` flag
+- [x] `azureus/data/sources/README.md` — documents the survivorship-bias limitation, the listing-date-as-start-date convention for late additions, yfinance HK quirks, and the fundamentals/macro deferral
+- [x] `tests/test_seed_scripts.py` — 7 tests: mechanism (fixture CSVs), idempotency, FK enforcement, and smoke-tests against the real curated CSVs (asserts `≥60` rows + spot-checks 0700.HK / 0005.HK / 3690.HK / 9988.HK)
+
+**Locked decisions on this PR:**
+- Universe scope is **Option B**: current snapshot + known late-additions with HK listing dates. Names removed from HSI within the 10y window are NOT captured. Documented in `azureus/data/sources/README.md`.
+- Late-addition `start_date` = HK listing date, NOT the exact HSI inclusion date (which we don't have authoritatively without Bloomberg).
+- Sector taxonomy = GICS (matches yfinance / most free providers). HSI Industry classification cross-walk deferred to Phase 5.
+- `scripts/` is a package (has `__init__.py`) so tests can import `from scripts import seed_tickers`. Operational scripts only; no public API.
 
 ---
 
