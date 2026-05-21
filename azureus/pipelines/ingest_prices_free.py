@@ -4,8 +4,16 @@ In-process Prefect 3: tasks run synchronously, no server needed. The
 Prefect server container is deferred to Phase 2 (`docs/ARCHITECTURE.md`
 §3.7). Decorators stay so the deferral is a config change, not a rewrite.
 
-Every flow run writes exactly one `ingestion_runs` row, success or fail.
-"No silent swallows" per CLAUDE.md "Common Mistakes" #9.
+Every per-ticker invocation writes exactly one `ingestion_runs` row,
+success or fail. "No silent swallows" per CLAUDE.md "Common Mistakes" #9.
+
+The work is split into two layers so the batch flow
+(`ingest_prices_batch.py`) can reuse the per-ticker mechanics:
+
+- `_ingest_one_ticker(ticker, lookback_days)` — pure helper. Returns a
+  status dict. NEVER raises. Always writes one lineage row.
+- `ingest_prices_free(ticker, ...)` — the single-ticker `@flow`. Calls
+  the helper and re-raises on failure for CLI exit-code semantics.
 """
 
 from __future__ import annotations
@@ -16,7 +24,7 @@ import traceback
 from typing import Any
 
 import pandas as pd
-from prefect import flow, task
+from prefect import flow
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from azureus.data.db import sync_session
@@ -42,22 +50,11 @@ _UPDATABLE_COLUMNS = (
 )
 
 
-@task(name="fetch_prices")
-def fetch_prices(ticker: str, start: dt.date, end: dt.date) -> pd.DataFrame:
-    return fetch_prices_from_yfinance(ticker, start, end)
+def _upsert_prices(df: pd.DataFrame) -> int:
+    """Upsert one DataFrame into `prices`. Returns row count touched.
 
-
-@task(name="validate_prices")
-def validate_prices(df: pd.DataFrame) -> pd.DataFrame:
-    return PRICES_SCHEMA.validate(df, lazy=False)
-
-
-@task(name="upsert_prices")
-def upsert_prices(df: pd.DataFrame) -> int:
-    """Upsert one batch into `prices`. Returns row count touched.
-
-    `INSERT ... ON CONFLICT (provider, ticker, date) DO UPDATE` —
-    idempotent under re-ingestion (per ARCHITECTURE §3.7).
+    `INSERT ... ON CONFLICT (pk_prices) DO UPDATE` — idempotent under
+    re-ingestion (§3.7).
     """
     if df.empty:
         return 0
@@ -90,13 +87,12 @@ def upsert_prices(df: pd.DataFrame) -> int:
     return len(records)
 
 
-@flow(name=_PIPELINE_NAME, log_prints=False)
-def ingest_prices_free(ticker: str, lookback_days: int = 30) -> dict[str, Any]:
-    """Fetch → validate → upsert prices for one ticker.
+def _ingest_one_ticker(ticker: str, lookback_days: int) -> dict[str, Any]:
+    """Single-ticker fetch → validate → upsert. NEVER raises.
 
-    Writes exactly one `ingestion_runs` row per call. On failure, the row is
-    persisted with `status='failed'` and full exception context, then the
-    error is re-raised.
+    Always writes one `ingestion_runs` row. Used by both the single-ticker
+    flow and the batch flow so per-ticker lineage stays uniform across
+    invocation modes.
     """
     end = dt.date.today()
     start = end - dt.timedelta(days=lookback_days)
@@ -107,9 +103,9 @@ def ingest_prices_free(ticker: str, lookback_days: int = 30) -> dict[str, Any]:
     errors_payload: dict[str, Any] | None = None
 
     try:
-        df = fetch_prices(ticker, start, end)
-        df = validate_prices(df)
-        rows_inserted = upsert_prices(df)
+        df = fetch_prices_from_yfinance(ticker, start, end)
+        df = PRICES_SCHEMA.validate(df, lazy=False)
+        rows_inserted = _upsert_prices(df)
         status = "success"
     except Exception as exc:
         status = "failed"
@@ -119,7 +115,6 @@ def ingest_prices_free(ticker: str, lookback_days: int = 30) -> dict[str, Any]:
             "traceback": traceback.format_exc(),
         }
         logger.exception("ingestion failed for ticker=%s", ticker)
-        # Re-raised after lineage write below.
     finally:
         _write_ingestion_run(
             started_at=started_at,
@@ -135,16 +130,23 @@ def ingest_prices_free(ticker: str, lookback_days: int = 30) -> dict[str, Any]:
             },
         )
 
-    if status == "failed":
-        raise RuntimeError(f"ingestion failed for ticker={ticker}; see ingestion_runs row")
-
     return {
         "status": status,
         "ticker": ticker,
         "rows_inserted": rows_inserted,
         "start": start.isoformat(),
         "end": end.isoformat(),
+        "error": errors_payload["message"] if errors_payload else None,
     }
+
+
+@flow(name=_PIPELINE_NAME, log_prints=False)
+def ingest_prices_free(ticker: str, lookback_days: int = 30) -> dict[str, Any]:
+    """Single-ticker flow. Re-raises on failure for CLI exit-code semantics."""
+    result = _ingest_one_ticker(ticker, lookback_days)
+    if result["status"] == "failed":
+        raise RuntimeError(f"ingestion failed for ticker={ticker}; see ingestion_runs row")
+    return result
 
 
 def main() -> None:

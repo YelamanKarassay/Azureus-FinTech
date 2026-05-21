@@ -73,10 +73,20 @@
 
 ## Days 10–11 — Ingestion at scale + lineage
 
-- [ ] Extend `ingest_prices_free` to batch over the whole HSI universe with concurrency control (Prefect task map + rate limiting)
-- [ ] `ingest_tickers` flow (weekly cadence) — refresh ticker metadata from yfinance
-- [ ] Idempotency: re-running ingestion on overlapping date ranges must not duplicate or corrupt rows (covered by `ON CONFLICT DO UPDATE` on the `(provider, ticker, date)` PK)
-- [ ] Failure handling: every exception path writes a row to `ingestion_runs` with status `failed` or `partial` and full context in `errors` JSONB. No silent swallows.
+- [x] Refactored `ingest_prices_free.py`: extracted `_ingest_one_ticker` helper that never raises and always writes one lineage row — shared with batch flow so per-ticker lineage semantics are uniform
+- [x] `azureus/pipelines/ingest_prices_batch.py` — fan-out via `ThreadPoolExecutor(max_workers=concurrency)` (default 4). Returns `success` / `partial` / `failed` summary; raises only when every ticker fails
+- [x] `azureus/pipelines/ingest_tickers_free.py` — name-only refresh from yfinance; **does NOT touch sector/industry** (CSV remains authoritative per Day 9). One lineage row per invocation with per-ticker failures in `errors.failures` JSONB
+- [x] CLI entries for both: `python -m azureus.pipelines.ingest_prices_batch --all-active` / `--tickers ... --concurrency N` and `python -m azureus.pipelines.ingest_tickers_free`
+- [x] `tests/test_ingest_prices_batch.py` — 5 tests: success, partial-failure, all-fail (raises), no-tickers noop, `is_active` filter
+- [x] `tests/test_ingest_tickers_free.py` — 3 tests: name refresh + sector untouched, per-ticker failure lineage, active-filter default
+- [x] Idempotency under overlapping ranges already covered by `ON CONFLICT DO UPDATE` on `pk_prices` (Days 7–8); batch tests verify this at scale
+
+**Locked decisions on this PR:**
+- Concurrency default = 4 (configurable). Empirically polite for yfinance at our ~70-ticker scale.
+- Per-ticker lineage rows; no batch-level row (would be redundant — query the per-ticker rows by `started_at` proximity if you need batch grouping).
+- No in-run retries. Failures surface immediately on the per-ticker `ingestion_runs` row; next scheduled invocation re-attempts. Idempotency comes from the PK ON CONFLICT.
+- Batch flow raises only on **total** failure (all tickers fail). Partial failures return a summary normally so a single bad ticker doesn't abort the daily run.
+- Ticker refresh is name-only. CSV remains authoritative for `sector` / `industry` / `currency` / `listed_date` until Phase 5 Bloomberg replaces it.
 
 ---
 
