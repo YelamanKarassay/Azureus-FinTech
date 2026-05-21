@@ -92,8 +92,15 @@
 
 ## Day 12 — `AuditingDataSource` + PIT regression test
 
-- [ ] `azureus/data/sources/auditing.py` — wraps any `DataSource` and asserts that no row returned has `reported_date > as_of_date`
-- [ ] `tests/test_pit_regression.py` — the signature PIT correctness test; runs `AuditingDataSource` over a synthetic backtest and asserts zero lookahead. **This is the project's signature test** (mentioned in CLAUDE.md and the README methodology page once it exists).
+- [x] `azureus/data/sources/auditing.py` — drop-in `DataSource` wrapper. Audits `get_fundamentals` against `reported_date <= as_of_date`. Raises `LookaheadError` (subclasses `AssertionError`) with a sample of violating rows. `get_prices` / `get_macro` / `get_universe_history` pass through (no PIT signature today; expand when the Protocol or use-cases evolve)
+- [x] `tests/test_pit_regression.py` — **the project's signature methodology test**. 7 tests: honest source passes, leaky source raises, 13-month synthetic backtest walk (zero violations, exact row counts per rebalance date), `get_prices` passthrough, empty response, provider-name wrap, `get_universe` passthrough
+- [x] Synthetic PIT corpus inline: 2 tickers × 4 quarterly statements in 2024 (plus Q4-2023) with realistic ~60-day disclosure lag
+
+**Locked decisions on this PR:**
+- Day 12 audit is **`get_fundamentals` only**. `get_macro` doesn't take `as_of_date` in the current Protocol; auditing it would either require Protocol changes or stateful `set_as_of()` on the wrapper. Both deferred until macro ingestion lands.
+- `LookaheadError` subclasses `AssertionError` (not `RuntimeError`) — this is a methodological-correctness failure, not an operational one. Backtests that hit it have produced invalid results.
+- Diagnostic counters (`fundamentals_calls`, `lookahead_violations`) so tests can assert the audit actually fired.
+- In-memory fakes (`InMemoryFundamentalsSource`, `LeakyFundamentalsSource`) live in the test module — not promoted to the package, no other consumers yet.
 
 ---
 
