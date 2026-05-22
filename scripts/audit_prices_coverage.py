@@ -67,9 +67,10 @@ def _load_coverage(index_id: str) -> list[TickerCoverage]:
       enough, or our lookback parameter was too small).
     """
     with sync_session() as session:
-        rows = session.execute(
-            text(
-                """
+        rows = (
+            session.execute(
+                text(
+                    """
                 SELECT
                   t.ticker,
                   t.listed_date,
@@ -91,9 +92,12 @@ def _load_coverage(index_id: str) -> list[TickerCoverage]:
                 ) p ON p.ticker = t.ticker
                 ORDER BY t.ticker
                 """
-            ),
-            {"idx": index_id},
-        ).mappings().all()
+                ),
+                {"idx": index_id},
+            )
+            .mappings()
+            .all()
+        )
 
     today = dt.date.today()
     coverage: list[TickerCoverage] = []
@@ -113,9 +117,7 @@ def _load_coverage(index_id: str) -> list[TickerCoverage]:
             shortfall_years = (today - ideal_start).days / 365.25
         else:
             window_days = max((today - first_date).days, 1)
-            expected_in_window = int(
-                round(window_days * _TRADING_DAYS_PER_YEAR / 365.25)
-            )
+            expected_in_window = int(round(window_days * _TRADING_DAYS_PER_YEAR / 365.25))
             density = r["rows"] / expected_in_window if expected_in_window else 0.0
             # If first_date > ideal_start, we have less history than hoped.
             shortfall_days = max((first_date - ideal_start).days, 0)
@@ -138,18 +140,13 @@ def _load_coverage(index_id: str) -> list[TickerCoverage]:
 
 
 def _print_summary(rows: list[TickerCoverage], density_threshold: float) -> None:
-    print(
-        f"{'ticker':>10} {'rows':>7} {'first':>12} {'last':>12} "
-        f"{'density':>9} {'shortfall':>11}"
-    )
+    print(f"{'ticker':>10} {'rows':>7} {'first':>12} {'last':>12} {'density':>9} {'shortfall':>11}")
     print("-" * 70)
     for c in rows:
         first = c.first_date.isoformat() if c.first_date else "—"
         last = c.last_date.isoformat() if c.last_date else "—"
         density_flag = " " if c.window_density >= density_threshold else "*"
-        shortfall_str = (
-            f"{c.history_shortfall_years:.1f}y" if c.history_shortfall_years else "—"
-        )
+        shortfall_str = f"{c.history_shortfall_years:.1f}y" if c.history_shortfall_years else "—"
         print(
             f"{c.ticker:>10} {c.rows:>7d} {first:>12} {last:>12} "
             f"{c.window_density:>8.1%}{density_flag} {shortfall_str:>11}"
@@ -163,12 +160,9 @@ def _print_findings(
 ) -> tuple[int, int, int]:
     """Return (missing_count, suspect_density_count, large_shortfall_count)."""
     missing = [c for c in rows if c.rows == 0]
-    suspect_density = [
-        c for c in rows if c.rows > 0 and c.window_density < density_threshold
-    ]
+    suspect_density = [c for c in rows if c.rows > 0 and c.window_density < density_threshold]
     large_shortfall = [
-        c for c in rows
-        if c.rows > 0 and c.history_shortfall_years >= shortfall_warn_years
+        c for c in rows if c.rows > 0 and c.history_shortfall_years >= shortfall_warn_years
     ]
 
     print()
@@ -207,9 +201,10 @@ def _print_findings(
 def _audit_zero_volume_runs(min_run_length: int = 5) -> None:
     """Surface tickers with zero-volume runs of `min_run_length` consecutive bars."""
     with sync_session() as session:
-        rows = session.execute(
-            text(
-                """
+        rows = (
+            session.execute(
+                text(
+                    """
                 WITH labeled AS (
                   SELECT ticker, date,
                          COALESCE(volume, 0) AS volume,
@@ -230,9 +225,12 @@ def _audit_zero_volume_runs(min_run_length: int = 5) -> None:
                 ORDER BY run_len DESC, ticker
                 LIMIT 20
                 """
-            ),
-            {"min_len": min_run_length},
-        ).mappings().all()
+                ),
+                {"min_len": min_run_length},
+            )
+            .mappings()
+            .all()
+        )
 
     print()
     print(f"=== Zero-volume runs of >= {min_run_length} consecutive bars (top 20) ===")
