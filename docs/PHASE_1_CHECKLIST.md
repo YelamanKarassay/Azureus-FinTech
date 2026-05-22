@@ -106,9 +106,18 @@
 
 ## Day 13 — Historical load + completeness audit
 
-- [ ] Load ~10 years of daily bars for the current HSI universe via `ingest_prices_free`
-- [ ] Validate row counts per ticker: expect ≈ 2520 trading days × N tickers, with documented exceptions for late-listed names
-- [ ] Spot-check obvious quality issues (zero-volume runs, price gaps, missing tickers)
+- [x] Loaded 12 years of daily bars for the current HSI universe via `ingest_prices_batch --all-active --lookback-days 4500`. Two-pass: 10y first (28s), then 12y (29s) once the dtype fix was in. Final result: **184,830 rows across 68 tickers** at concurrency=4
+- [x] Built `scripts/audit_prices_coverage.py` — reusable per-ticker coverage report. Density metric (rows / expected trading days in window) + history shortfall metric (first_date vs universe_start). CLI: `uv run python -m scripts.audit_prices_coverage`
+- [x] Surfaced and fixed a dtype-inconsistency bug in `fetch_prices_from_yfinance` — empty DataFrames trip Pandera's strict dtype check on `string[python]`. Cast `provider` / `ticker` to `"string"` consistently in both empty and non-empty branches; test fixtures updated to match
+- [x] Surfaced and fixed three CSV inaccuracies — `1876.HK`, `1997.HK`, `2269.HK` were attributed pre-2014 HSI membership but actually IPO'd 2017–2019. Corrected `tickers.csv` (added `listed_date`) and `hsi_members.csv` (corrected `start_date`)
+- [x] Documented the `0011.HK` yfinance gap, the CSV corrections, and Country Garden's real-event suspension in `azureus/data/sources/README.md`
+
+**Final coverage:** 68/69 universe members have data; all at ~98.5% window density. One missing (`0011.HK` — yfinance 404). Three names with naturally short histories (post-2014 listings). Ten tickers with zero-volume runs of ≥5 bars — all confirmed real corporate suspensions, not corruption.
+
+**Locked decisions:**
+- Density metric uses `first_date → today` as the window, not `universe_start → today` (the latter overstates coverage shortfalls for names with naturally late listings).
+- History shortfall is informational, not a hard failure. The audit script exit code only flags "missing" and "low density" — not "short history" (those are free-data-source limits).
+- Zero-volume runs are flagged but not exit-coded — they're often real events.
 
 ---
 

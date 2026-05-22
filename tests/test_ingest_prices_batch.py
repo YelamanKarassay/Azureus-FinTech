@@ -36,8 +36,8 @@ def _make_synthetic_for_ticker(ticker: str, n_bars: int = 30) -> pd.DataFrame:
     dates = pd.bdate_range(end=pd.Timestamp(dt.date.today() - dt.timedelta(days=1)), periods=n_bars)
     return pd.DataFrame(
         {
-            "provider": "yfinance",
-            "ticker": ticker,
+            "provider": pd.array(["yfinance"] * n_bars, dtype="string"),
+            "ticker": pd.array([ticker] * n_bars, dtype="string"),
             "date": dates,
             "open": 100.0,
             "high": 110.0,

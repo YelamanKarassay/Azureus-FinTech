@@ -84,8 +84,12 @@ def fetch_prices_from_yfinance(
         empty: dict[str, list[object]] = {col: [] for col in _PRICE_COLUMNS}
         return pd.DataFrame(empty).astype(
             {
-                "provider": "object",
-                "ticker": "object",
+                # `string` (pandas StringDtype) — not `object`. Pandera 0.20+
+                # strictly checks dtype names on empty DataFrames; object on
+                # an empty frame trips the validator even though row-bearing
+                # frames slide by.
+                "provider": "string",
+                "ticker": "string",
                 "date": "datetime64[ns]",
                 "open": "float64",
                 "high": "float64",
@@ -105,7 +109,9 @@ def fetch_prices_from_yfinance(
     df["provider"] = PROVIDER_NAME
     df["ticker"] = ticker
     df = df[_PRICE_COLUMNS]
-    # Nullable Int64 for volume; float64 for OHLC are pandas defaults.
+    # Explicit dtypes — see comment in the empty branch.
+    df["provider"] = df["provider"].astype("string")
+    df["ticker"] = df["ticker"].astype("string")
     df["volume"] = df["volume"].astype("Int64")
     # Drop rows missing close — see docstring.
     df = df.dropna(subset=["close"]).reset_index(drop=True)

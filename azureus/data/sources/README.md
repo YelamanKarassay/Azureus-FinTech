@@ -30,6 +30,37 @@ For Phase 1 (Option B per `docs/PHASE_1_CHECKLIST.md` Day 9):
   from current snapshot + public IPO records; no historical removal data
   is available without Bloomberg.
 
+### Known coverage gaps found in Day 13 audit (2026-05-23)
+
+A 12-year batch ingest (`--lookback-days 4500`) surfaced three classes of
+issue. Run `uv run python -m scripts.audit_prices_coverage` for the live
+report.
+
+1. **`0011.HK` (Hang Seng Bank) — completely missing.** yfinance returns
+   `404 Quote not found for symbol: 0011.HK`; we tried `0011.HK`,
+   `11.HK`, `0011.HKG`, and `HSB.HK` — none resolve. This is a genuine
+   yfinance gap for this specific name, not a code bug. Strategies will
+   simply omit 0011.HK from rebalances on the free-data path. Bloomberg
+   covers it in Phase 5.
+
+2. **Late-listing corrections** — three names had Day 9 CSV entries
+   with `start_date = 2014-01-01` but actually IPO'd after that date.
+   Corrected on Day 13:
+
+   | Ticker | Name | Old start_date | Corrected to |
+   |---|---|---|---|
+   | `1876.HK` | Budweiser Brewing Company APAC | 2014-01-01 | 2019-09-30 |
+   | `1997.HK` | Wharf Real Estate Investment | 2014-01-01 | 2017-11-15 |
+   | `2269.HK` | WuXi Biologics | 2014-01-01 | 2017-06-13 |
+
+3. **Country Garden (`2007.HK`) 9-month suspension** in `prices` — 198
+   consecutive zero-volume bars from 2024-04-02 to 2025-01-20. **This
+   is a real corporate event** (Country Garden's debt restructuring;
+   stock trading suspended on the exchange), not a data quality bug.
+   Strategy code that uses turnover/liquidity filters will naturally
+   exclude suspended names. Similar shorter runs exist for `1378.HK`,
+   `2899.HK`, `2018.HK`, and a few others — all real suspensions.
+
 ### Residual survivorship bias
 
 The missing removed names create survivorship bias in any backtest using

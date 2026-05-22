@@ -141,8 +141,8 @@ def synthetic_prices_df() -> pd.DataFrame:
     dates = pd.bdate_range(end=pd.Timestamp(end), periods=30)
     df = pd.DataFrame(
         {
-            "provider": "yfinance",
-            "ticker": "0700.HK",
+            "provider": pd.array(["yfinance"] * 30, dtype="string"),
+            "ticker": pd.array(["0700.HK"] * 30, dtype="string"),
             "date": dates,
             "open": 400.0,
             "high": 410.0,
