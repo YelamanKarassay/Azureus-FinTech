@@ -23,6 +23,7 @@ dependencies = [
     "numpy>=1.26",
     "yfinance>=0.2.50",
     "prefect>=3.1",
+    "exchange-calendars>=4.5",
 ]
 
 [dependency-groups]
@@ -80,7 +81,14 @@ exclude = ["alembic/versions"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pandera.*", "rq.*", "plotly.*", "yfinance.*", "prefect.*"]
+module = [
+    "pandera.*",
+    "rq.*",
+    "plotly.*",
+    "yfinance.*",
+    "prefect.*",
+    "exchange_calendars.*",
+]
 ignore_missing_imports = true
 
 # ---- Pytest --------------------------------------------------------------
