@@ -287,7 +287,7 @@ Pause and check:
 
 > **Update this section as phases progress.**
 
-**Current phase:** Phase 0 (local foundation complete; production deploy deferred) → starting Phase 1 — Data Layer
+**Current phase:** Phase 0 (local foundation complete; production deploy deferred) → **Phase 1 complete (2026-05-23)** → ready for Phase 2 (Backtester + Benchmark)
 
 **Phase 0 status (as of 2026-05-12):** Local foundation done — public GitHub repo, two-job CI both green, local Docker Compose for Postgres+TimescaleDB and Redis (verified healthy), FastAPI `/api/v1/health` and `/api/v1/version`, Vite+React+TanStack Query frontend reading the health endpoint via Vite proxy. **Production deployment is deferred:** Azure for Students region policy blocked VM provisioning in every region attempted. Decision (developer): pause deploy work, continue local development, re-evaluate cloud provider (likely return to DigitalOcean or pick a region-permissive alternative) before sealing Phase 0.
 
