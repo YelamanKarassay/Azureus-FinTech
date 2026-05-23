@@ -51,25 +51,26 @@
 
 ## Day 17 — Cost model
 
-- [ ] `azureus/backtesting/cost_model.py` — `HKCostModel` per ARCHITECTURE §4.8:
-  - Commission (institutional) 2.0 bps — both sides
-  - Stamp duty 10.0 bps — **sell only** (don't symmetrize this — the asymmetry is real)
-  - SFC transaction levy 0.27 bps — both
-  - HKEX trading fee 0.5 bps — both
-  - CCASS settlement 0.2 bps — both
-  - **Round-trip total ~16 bps**
-  - Slippage `α × (trade_notional / median_daily_volume)^β` (additive on top of bps), defaults α=10, β=0.5
-- [ ] All bps + slippage params live on the model instance (override-able per backtest invocation)
-- [ ] `Trade → ExecutedTrade` conversion: `cost_model.execute(trade, price, median_daily_volume) -> ExecutedTrade`
-- [ ] `tests/test_cost_model.py` — **CLAUDE.md required test**:
-  - Round-trip cost on a known 1M HKD trade matches expected bps within rounding
-  - Sell-side cost > buy-side cost by the stamp duty
-  - Slippage scales as expected with trade notional / liquidity ratio
+- [x] `azureus/backtesting/cost_model.py` — `HKCostModel` as `@dataclass(frozen=True)`. All seven params (5 bps fees + α + β) defaulted to ARCHITECTURE §4.8 values, override-able per instance
+- [x] `execute(trade, fill_price, median_daily_volume, executed_at) -> ExecutedTrade` with every cost component broken out: `commission`, `stamp_duty` (sell-only), `sfc_levy`, `hkex_fee`, `ccass_fee`, `slippage`, `total_cost`, `net_cash_change`
+- [x] **Fail-loud on illiquid names** — `median_daily_volume <= 0` raises `ValueError`. Strategies must filter illiquid names upstream
+- [x] Zero-share edge case → zero-cost trade (no division-by-zero on slippage)
+- [x] `tests/test_cost_model.py` — 16 tests (CLAUDE.md required cost-model assertions are tests 1–4):
+  - Buy-side fees == HK$11.88 (2.97 bps × 40k) with each component checked individually
+  - Sell-side fees == HK$51.88 (12.97 bps × 40k)
+  - Round-trip == HK$63.76 ≈ 15.94 bps ≈ §4.8's "~16 bps"
+  - Sell-side − buy-side == stamp_duty exactly
+  - Slippage scales as √(notional/MDV) (4× ratio → 2× slip)
+  - Concrete slippage value matches `10 × (10k/1M)^0.5 = 1 bp = HK$1.00`
+  - Zero/negative MDV raises ValueError
+  - Cash impact directionality (negative for buy, positive for sell-after-fees)
+  - Param overrides flow through; frozen-dataclass guarantee
 
 **Locked decisions:**
 - All fees are bps of trade notional. No fixed minimums in v1.
 - Slippage is symmetric in direction (no buy/sell asymmetry).
 - HKD-only. Currency conversion costs would be a different model.
+- `gross_notional == 0` → all-zero `ExecutedTrade`. Cheap, defensible default.
 
 ---
 
