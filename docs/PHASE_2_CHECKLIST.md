@@ -31,22 +31,21 @@
 
 ## Day 16 — Portfolio
 
-- [ ] `azureus/backtesting/portfolio.py` — `Portfolio` class. State:
-  - `cash` (Decimal — money column, NUMERIC discipline applies, but we accept float in-memory and quantize at the boundary)
-  - `holdings: dict[str, Position]`
-  - `history: list[PortfolioSnapshot]` — one per simulation date for the equity curve
-- [ ] Methods:
-  - `apply_executed_trade(trade: ExecutedTrade)` — updates cash + holdings
-  - `mark_to_market(prices: dict[str, float])` — refreshes Position.last_price + market_value
-  - `total_value() -> float` — cash + sum(market_value)
-  - `weights() -> dict[str, float]` — proportion of total value per ticker
-  - `record_snapshot(as_of_date: date)` — pushes one row onto `history`
-- [ ] `tests/test_portfolio.py` — apply trade, mark to market, weight calculation, snapshot history
+- [x] `azureus/backtesting/portfolio.py` — `Portfolio` class:
+  - Properties: `cash`, `holdings` (read-only Mapping view), `history` (tuple)
+  - `apply_executed_trade(trade)` — updates cash via `net_cash_change`, replaces Position; long-only enforced via `LongOnlyError` (atomicity: cash unchanged on failed apply)
+  - `mark_to_market(prices)` — refreshes every Position; raises `KeyError` on missing price (engine bug if it happens)
+  - `record_snapshot(as_of_date)` — appends frozen `PortfolioSnapshot` to history; `dict(self._holdings)` shallow copy isolates snapshots from later mutations
+  - `total_value()` — cash + Σ market_value
+  - `weights()` — implicit cash residual; returns `{}` when total_value ≤ 0
+- [x] `tests/test_portfolio.py` — 19 tests: construction, buy/sell/accumulate/close/short-rejection/oversell-rejection, atomicity on failed trade, mark-to-market all-positions/missing-price/empty-portfolio, total value, weights with implicit cash, weights empty, snapshot capture, history accumulation, snapshot immutability under later mutation, history immutability under mark-to-market
 
 **Locked decisions:**
-- Cash always in HKD. Multi-currency is out of v1.
-- `apply_executed_trade` does NOT recompute slippage or fees — those are the cost model's job. Trades arrive already-executed from the engine.
-- Negative cash allowed but logged — we don't enforce margin; the engine should never produce it.
+- `LongOnlyError` (renamed from `LongOnlyViolation` to satisfy N818) subclasses `ValueError`. v1 is long-only; attempting to go short is a strategy bug, not a runtime condition.
+- Cash implicit in `weights()` — sum of returned dict gives "fraction invested", remainder is cash. Strategies that need explicit cash weight can compute `1 - sum`.
+- `last_price` updates to `fill_price` on `apply_executed_trade` (the trade itself observes a price); `mark_to_market` overwrites with the day's close. Between trades, the engine should mark to market.
+- Trades arrive pre-executed: `apply_executed_trade` trusts `net_cash_change`. The cost model owns fee/slippage arithmetic.
+- Negative cash allowed silently — the engine should size trades to avoid it; we don't enforce margin.
 
 ---
 
