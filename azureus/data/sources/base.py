@@ -32,10 +32,14 @@ class DataSource(Protocol):
     """The interface every data provider must implement.
 
     Implementations expose `provider_name` so jobs can record which provider
-    produced their inputs (§3.10 reproducibility).
+    produced their inputs (§3.10 reproducibility). Declared as a read-only
+    property so wrappers (`AuditingDataSource`) that derive it from an inner
+    source satisfy the Protocol; concrete sources with a literal class
+    attribute also satisfy it (LSP: more-permissive implementations are OK).
     """
 
-    provider_name: str
+    @property
+    def provider_name(self) -> str: ...
 
     def get_universe(self, index_id: str, as_of_date: dt.date) -> list[str]:
         """Tickers that are members of `index_id` on `as_of_date`.

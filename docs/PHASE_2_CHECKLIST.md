@@ -76,28 +76,37 @@
 
 ## Days 18–19 — BacktestEngine
 
-- [ ] `azureus/backtesting/engine.py` — the main loop:
-  - `BacktestEngine(strategy, data_source, cost_model, start, end, initial_capital)`
-  - `run() -> BacktestResult`
-  - For each rebalance date from `strategy.rebalance_dates(start, end)`:
-    1. Mark portfolio to market using yesterday's close (one-day signal lag — Hard Rule 1 + §4.6)
-    2. Call `strategy.target_weights(StrategyContext(as_of_date, ...))` with `as_of_date` strictly = simulation date
-    3. Diff target weights vs current weights → list of `Trade`
-    4. Each `Trade` → `ExecutedTrade` via cost model using today's close as fill price
-    5. Apply executed trades to portfolio
-    6. Record snapshot
-  - Between rebalance dates: mark-to-market daily for the equity curve, no trades
-- [ ] PIT enforcement: engine wraps the supplied `data_source` in `AuditingDataSource` by default (override-able for performance) — runtime PIT failure raises `LookaheadError` immediately, just like `tests/test_pit_regression.py`
-- [ ] `tests/test_engine.py` — engine integration tests against synthetic-corpus DataSource:
-  - Trivial buy-and-hold strategy → equity curve matches manual calculation
-  - Strategy with multiple rebalances → cash flow + costs accounted for
-  - Auditing wrapper catches a deliberately-leaky strategy
+### Day 18 — Engine skeleton + happy path
 
-**Locked decisions:**
-- Execution timing = same-day close with one-day signal lag. Signal computed from data through D-1; trades execute at D close (§4.6).
+- [x] `azureus/strategies/base.py` — minimal `Strategy` Protocol + `StrategyContext` (frozen Pydantic). Day 21 layers full ABC + Pydantic params + registry on top without engine refactor (Protocol contract is invariant)
+- [x] `azureus/backtesting/engine.py` — `BacktestEngine` + `BacktestConfig` (frozen dataclass). Per-sim-day loop: mark-to-market held positions at today's close → if rebalance day, build context with `as_of_date = previous_trading_day(D)` (one-day signal lag) → fetch target weights → diff → trade via cost model at today's close → apply → snapshot
+- [x] Rebalance dates normalised through `roll_to_trading_day`; out-of-window dates dropped
+- [x] MDV cache per `(ticker, sim_date)`; computes rolling-20-day-median from a 45-calendar-day lookback ending at `previous_trading_day(D)`; raises `ValueError` if < 5 observed days
+- [x] `AuditingDataSource` auto-wrap default-on; override with `BacktestConfig.audit=False`
+- [x] `tests/test_engine.py` — 7 happy-path tests (Day 19 adds edge cases):
+  - Runs to end + snapshot ordering
+  - Single-rebalance buy-and-hold + share count matches initial_cash / fill_price
+  - Equity-curve growth tracks price drift
+  - Snapshot per trading day, strictly increasing
+  - Costs actually deducted (day-1 total value < initial capital)
+  - No rebalance in window → pure cash, value constant
+  - Empty trading window → empty portfolio, history is `()`
+- [x] Pulled `provider_name` on `DataSource` Protocol to a read-only `@property` — `AuditingDataSource` now satisfies the Protocol cleanly
+
+**Locked decisions (Day 18):**
+- Execution timing = same-day close, one-day signal lag (Hard Rule 1 + §4.6). Sizing uses today's close (same price as the fill).
 - Trading calendar drives the simulation step. Non-trading days are skipped entirely.
-- Engine builds `StrategyContext` with `as_of_date`, current `universe`, `portfolio_value`, `current_weights` (read-only) per §4.3.
-- Engine fails fast on missing prices for a target-weight ticker — strategy is expected to honor the liquidity filter.
+- `StrategyContext.as_of_date = previous_trading_day(sim_date)` — strategy's DataSource queries see data through D-1.
+- Tickers missing fill prices on a rebalance day are silently skipped (Day 19 will choose: warn vs raise).
+- Engine returns raw `Portfolio` for Day 18; Day 20 introduces `BacktestResult` and refactors the return type.
+
+### Day 19 — Engine completeness + edge cases (next)
+
+- [ ] Multi-rebalance test with cash flow + costs verification
+- [ ] Liquidity filter: tickers missing fill prices → log + skip (decide: warn-only vs raise)
+- [ ] Deliberately-leaky strategy → audit wrapper raises `LookaheadError` mid-run
+- [ ] Missing held-ticker price on mark-to-market → engine surfaces the KeyError from Portfolio
+- [ ] MDV insufficient data → `ValueError` surfaced as flow failure (already raises; need a test)
 
 ---
 
