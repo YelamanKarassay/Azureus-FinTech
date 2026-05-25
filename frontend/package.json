@@ -12,8 +12,10 @@
   "dependencies": {
     "@tanstack/react-query": "^5.100.9",
     "@tanstack/react-router": "^1.169.2",
+    "plotly.js-basic-dist-min": "^3.5.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-plotly.js": "^2.6.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
@@ -21,6 +23,7 @@
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/react-plotly.js": "^2.6.4",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
     "eslint": "^10.2.1",
@@ -32,5 +35,10 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "es5-ext"
+    ]
   }
 }

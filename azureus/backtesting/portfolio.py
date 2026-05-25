@@ -48,6 +48,7 @@ class Portfolio:
     def __init__(self, initial_cash: float) -> None:
         if initial_cash < 0:
             raise ValueError(f"initial_cash must be non-negative; got {initial_cash}")
+        self._initial_cash: float = float(initial_cash)
         self._cash: float = float(initial_cash)
         self._holdings: dict[str, Position] = {}
         self._history: list[PortfolioSnapshot] = []
@@ -57,6 +58,10 @@ class Portfolio:
     @property
     def cash(self) -> float:
         return self._cash
+
+    @property
+    def initial_cash(self) -> float:
+        return self._initial_cash
 
     @property
     def holdings(self) -> Mapping[str, Position]:

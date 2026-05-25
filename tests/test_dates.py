@@ -55,6 +55,12 @@ def test_christmas_2024_not_trading() -> None:
     assert not is_trading_day(dt.date(2024, 12, 26))
 
 
+def test_ad_hoc_weather_closures_are_not_trading_days() -> None:
+    """Known 2023 HKEX weather closures are filtered from the library calendar."""
+    assert not is_trading_day(dt.date(2023, 9, 1))
+    assert not is_trading_day(dt.date(2023, 9, 8))
+
+
 # ---- next/previous -------------------------------------------------------
 
 
@@ -79,6 +85,10 @@ def test_previous_trading_day_is_strictly_before() -> None:
     assert previous_trading_day(dt.date(2024, 1, 3)) == dt.date(2024, 1, 2)
 
 
+def test_previous_trading_day_skips_ad_hoc_weather_closure() -> None:
+    assert previous_trading_day(dt.date(2023, 9, 4)) == dt.date(2023, 8, 31)
+
+
 # ---- roll_to_trading_day -------------------------------------------------
 
 
@@ -101,6 +111,10 @@ def test_roll_advances_multi_day_holiday_to_first_session() -> None:
     # LNY: Sat 2024-02-10 (start of LNY) → Wed 2024-02-14 (first session).
     # Mon 2024-02-12 and Tue 2024-02-13 are HK holidays.
     assert roll_to_trading_day(dt.date(2024, 2, 10)) == dt.date(2024, 2, 14)
+
+
+def test_roll_advances_ad_hoc_weather_closure_to_next_session() -> None:
+    assert roll_to_trading_day(dt.date(2023, 9, 1)) == dt.date(2023, 9, 4)
 
 
 # ---- trading_days_between ------------------------------------------------

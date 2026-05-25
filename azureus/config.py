@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     database_url: str = ""
     database_url_sync: str = ""
+    redis_url: str = "redis://localhost:6379/0"
 
 
 @lru_cache(maxsize=1)

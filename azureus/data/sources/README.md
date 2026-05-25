@@ -101,19 +101,27 @@ the methodology page (Phase 3+) will spell this out for visitors.
 
 ## Fundamentals
 
-**Not implemented in the free path yet** — Day 9–11 of
-`docs/PHASE_1_CHECKLIST.md`. The yfinance API exposes a `Ticker.income_stmt`
-endpoint but without point-in-time `reported_date` information — it gives
-you the current view of historical statements, not what was known on each
-historical date. This makes it unsuitable for PIT-correct backtests as-is.
+The free demo path normalizes yfinance quarterly financial statements into
+`fundamentals_pit` rows via `ingest_fundamentals_free`.
 
-Two paths under consideration:
-1. Approximate `reported_date = period_end + 60 days` (HK regulatory
-   convention) and document the approximation.
-2. Stop short of fundamentals on the free path; require Bloomberg for
-   Strategy 1 / 2. Document this clearly.
+yfinance does **not** provide reliable point-in-time announcement dates for
+HK equities. To keep demo backtests structurally PIT-safe, the free path uses
+a conservative proxy:
 
-Decision will land with Day 9–11.
+`reported_date = period_end + 90 days`
+
+Rows whose proxy `reported_date` would be in the future are skipped before
+they can reach Postgres. `YFinanceDataSource.get_fundamentals(...)` then
+applies the normal production rule: only rows with
+`reported_date <= as_of_date` are visible.
+
+Limitations:
+- Coverage is sparse for many HK tickers and often only recent periods are
+  available.
+- Values are the current yfinance view of historical statements, so true
+  restatement timing is unavailable in the free source.
+- Strategy 1 / 2 may need a shorter public-demo date range when using
+  yfinance. Bloomberg remains the research-grade fundamentals path.
 
 ## Macro
 

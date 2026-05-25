@@ -31,6 +31,13 @@ import pandas as pd
 
 _HKEX_CALENDAR_NAME = "XHKG"  # ISO 10383 MIC code for HKEX
 _LOOKUP_WINDOW = pd.Timedelta(days=21)  # generous buffer for multi-day holidays
+_AD_HOC_CLOSURES = frozenset(
+    {
+        # Typhoon / extreme-weather closures missing from exchange-calendars 4.x.
+        dt.date(2023, 9, 1),
+        dt.date(2023, 9, 8),
+    }
+)
 
 
 @lru_cache(maxsize=1)
@@ -43,7 +50,8 @@ def _next_session_on_or_after(d: dt.date) -> dt.date:
     cal = _hkex_calendar()
     start = pd.Timestamp(d)
     sessions = cal.sessions_in_range(start, start + _LOOKUP_WINDOW)
-    if len(sessions) == 0:
+    sessions = [session for session in sessions if session.date() not in _AD_HOC_CLOSURES]
+    if not sessions:
         raise ValueError(f"no HKEX trading day found within 21 days from {d}")
     # pandas-stubs types Timestamp.date() as Any — pin it explicitly.
     return cast(dt.date, sessions[0].date())
@@ -51,7 +59,7 @@ def _next_session_on_or_after(d: dt.date) -> dt.date:
 
 def is_trading_day(d: dt.date) -> bool:
     """`True` iff HKEX has a trading session on `d`."""
-    return bool(_hkex_calendar().is_session(pd.Timestamp(d)))
+    return d not in _AD_HOC_CLOSURES and bool(_hkex_calendar().is_session(pd.Timestamp(d)))
 
 
 def trading_days_between(start: dt.date, end: dt.date) -> list[dt.date]:
@@ -59,7 +67,7 @@ def trading_days_between(start: dt.date, end: dt.date) -> list[dt.date]:
     if start > end:
         return []
     sessions = _hkex_calendar().sessions_in_range(pd.Timestamp(start), pd.Timestamp(end))
-    return [ts.date() for ts in sessions]
+    return [ts.date() for ts in sessions if ts.date() not in _AD_HOC_CLOSURES]
 
 
 def next_trading_day(d: dt.date) -> dt.date:
@@ -73,7 +81,8 @@ def previous_trading_day(d: dt.date) -> dt.date:
     end = pd.Timestamp(d) - pd.Timedelta(days=1)
     start = end - _LOOKUP_WINDOW
     sessions = cal.sessions_in_range(start, end)
-    if len(sessions) == 0:
+    sessions = [session for session in sessions if session.date() not in _AD_HOC_CLOSURES]
+    if not sessions:
         raise ValueError(f"no HKEX trading day found within 21 days before {d}")
     return cast(dt.date, sessions[-1].date())
 

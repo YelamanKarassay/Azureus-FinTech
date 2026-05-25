@@ -24,9 +24,8 @@ with `LookaheadError`. Override with `BacktestConfig.audit=False` only
 if profiling shows the audit is a hot-path bottleneck (it isn't, at
 our backtest cadence).
 
-For Day 18 the engine returns the raw `Portfolio` (its `history` is the
-equity curve). Day 20 introduces `BacktestResult` with the analytics
-suite; `run()`'s return type changes then.
+The engine returns a `BacktestResult`: daily equity curve, holdings,
+executed trades, and summary analytics.
 """
 
 from __future__ import annotations
@@ -37,7 +36,8 @@ from dataclasses import dataclass
 
 from azureus.backtesting.cost_model import HKCostModel
 from azureus.backtesting.portfolio import Portfolio
-from azureus.backtesting.value_objects import Trade
+from azureus.backtesting.results import BacktestResult
+from azureus.backtesting.value_objects import ExecutedTrade, Trade
 from azureus.data.sources.auditing import AuditingDataSource
 from azureus.data.sources.base import DataSource
 from azureus.strategies.base import Strategy, StrategyContext
@@ -92,22 +92,26 @@ class BacktestEngine:
         self._data_source: DataSource = (
             AuditingDataSource(data_source) if config.audit else data_source
         )
+        # Strategies read market and PIT data through `self.data`; make the
+        # audited source the one they see inside `target_weights`.
+        self._strategy.data = self._data_source
         # MDV cache keyed by (ticker, sim_date). Cheap memory; engine
         # instances are short-lived (one per backtest).
         self._mdv_cache: dict[tuple[str, dt.date], float] = {}
 
     # ---- public entry point ---------------------------------------------
 
-    def run(self) -> Portfolio:
+    def run(self) -> BacktestResult:
         sim_days = trading_days_between(self._config.start, self._config.end)
         portfolio = Portfolio(initial_cash=self._config.initial_capital)
+        executed_trades: list[ExecutedTrade] = []
         if not sim_days:
             logger.warning(
                 "no HKEX trading days in [%s, %s] — empty backtest",
                 self._config.start,
                 self._config.end,
             )
-            return portfolio
+            return BacktestResult.from_portfolio(portfolio, executed_trades)
 
         rebalance_days = self._compute_rebalance_days(self._config.start, self._config.end)
 
@@ -119,12 +123,12 @@ class BacktestEngine:
 
             # Step 2: if rebalance day, generate and execute trades.
             if sim_date in rebalance_days:
-                self._do_rebalance(portfolio, sim_date)
+                executed_trades.extend(self._do_rebalance(portfolio, sim_date))
 
             # Step 3: record end-of-day snapshot.
             portfolio.record_snapshot(sim_date)
 
-        return portfolio
+        return BacktestResult.from_portfolio(portfolio, executed_trades)
 
     # ---- internals ------------------------------------------------------
 
@@ -148,7 +152,7 @@ class BacktestEngine:
                 result.add(rolled)
         return result
 
-    def _do_rebalance(self, portfolio: Portfolio, sim_date: dt.date) -> None:
+    def _do_rebalance(self, portfolio: Portfolio, sim_date: dt.date) -> list[ExecutedTrade]:
         """Run one rebalance: ask strategy → diff → execute → apply."""
         as_of = previous_trading_day(sim_date)
         ctx = StrategyContext(
@@ -163,15 +167,26 @@ class BacktestEngine:
         # plus current holdings (to sell out).
         affected_tickers = set(target_weights.keys()) | set(portfolio.holdings.keys())
         if not affected_tickers:
-            return
+            return []
         fill_prices = self._fetch_close_prices(list(affected_tickers), sim_date)
+        missing_fill_tickers = sorted(affected_tickers - set(fill_prices))
+        if missing_fill_tickers:
+            logger.warning(
+                "skipping %d ticker(s) with missing close price on %s: %s",
+                len(missing_fill_tickers),
+                sim_date,
+                ", ".join(missing_fill_tickers),
+            )
 
         trades = _diff_to_trades(target_weights, portfolio, fill_prices)
+        executed_trades: list[ExecutedTrade] = []
         for trade in trades:
             mdv = self._get_median_daily_volume(trade.ticker, sim_date)
             fill_price = fill_prices[trade.ticker]
             executed = self._cost_model.execute(trade, fill_price, mdv, sim_date)
             portfolio.apply_executed_trade(executed)
+            executed_trades.append(executed)
+        return executed_trades
 
     def _fetch_close_prices(
         self,

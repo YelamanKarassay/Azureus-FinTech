@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from collections.abc import Mapping
+from typing import Any
 
 import pandas as pd
 import yfinance as yf
@@ -52,6 +54,55 @@ _PRICE_COLUMNS = [
     "adjusted_close",
     "volume",
 ]
+
+_FUNDAMENTAL_COLUMNS = [
+    "provider",
+    "ticker",
+    "metric",
+    "period_end",
+    "reported_date",
+    "value",
+    "unit",
+    "is_restated",
+]
+
+_FUNDAMENTAL_REPORTED_LAG_DAYS = 90
+
+_STATEMENT_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "net_income": (
+        "income",
+        (
+            "Net Income",
+            "Net Income Common Stockholders",
+            "Net Income From Continuing Operation Net Minority Interest",
+        ),
+    ),
+    "total_revenue": ("income", ("Total Revenue", "Operating Revenue")),
+    "gross_profit": ("income", ("Gross Profit",)),
+    "basic_eps": ("income", ("Basic EPS",)),
+    "diluted_eps": ("income", ("Diluted EPS",)),
+    "book_value": (
+        "balance",
+        (
+            "Stockholders Equity",
+            "Common Stock Equity",
+            "Total Equity Gross Minority Interest",
+        ),
+    ),
+    "total_assets": ("balance", ("Total Assets",)),
+    "total_liabilities": (
+        "balance",
+        ("Total Liabilities Net Minority Interest", "Total Liab"),
+    ),
+    "total_debt": ("balance", ("Total Debt", "Net Debt")),
+    "ordinary_shares": ("balance", ("Ordinary Shares Number", "Share Issued")),
+    "free_cash_flow": ("cashflow", ("Free Cash Flow",)),
+    "operating_cash_flow": (
+        "cashflow",
+        ("Operating Cash Flow", "Total Cash From Operating Activities"),
+    ),
+    "capital_expenditure": ("cashflow", ("Capital Expenditure", "Capital Expenditures")),
+}
 
 
 def fetch_prices_from_yfinance(
@@ -118,6 +169,95 @@ def fetch_prices_from_yfinance(
     # pandas-stubs types reset_index() as Any; an explicit annotation pins it.
     result: pd.DataFrame = df
     return result
+
+
+def fetch_fundamentals_from_yfinance(
+    ticker: str,
+    *,
+    today: dt.date | None = None,
+) -> pd.DataFrame:
+    """Fetch quarterly yfinance statements and normalize to `fundamentals_pit`.
+
+    yfinance does not provide true announcement timestamps consistently for
+    HK equities. For the public demo path we use a conservative PIT proxy:
+    `reported_date = period_end + 90 days`. Rows whose proxy reported date
+    is after `today` are skipped so the DB never contains future
+    `reported_date` values.
+    """
+    as_of_today = today or dt.date.today()
+    handle = yf.Ticker(ticker)
+    statements = {
+        "income": handle.quarterly_income_stmt,
+        "balance": handle.quarterly_balance_sheet,
+        "cashflow": handle.quarterly_cashflow,
+    }
+    return _normalize_yfinance_fundamentals(ticker, statements, as_of_today)
+
+
+def _normalize_yfinance_fundamentals(
+    ticker: str,
+    statements: Mapping[str, pd.DataFrame],
+    today: dt.date,
+) -> pd.DataFrame:
+    """Normalize raw yfinance statement frames into long PIT rows."""
+    rows: list[dict[str, Any]] = []
+    for metric, (statement_name, aliases) in _STATEMENT_METRICS.items():
+        statement = statements.get(statement_name, pd.DataFrame())
+        if statement.empty:
+            continue
+        source_row = _first_available_row(statement, aliases)
+        if source_row is None:
+            continue
+        for period, value in source_row.items():
+            if pd.isna(value):
+                continue
+            period_end = _period_to_date(period)
+            reported_date = period_end + dt.timedelta(days=_FUNDAMENTAL_REPORTED_LAG_DAYS)
+            if reported_date > today:
+                continue
+            rows.append(
+                {
+                    "provider": PROVIDER_NAME,
+                    "ticker": ticker,
+                    "metric": metric,
+                    "period_end": period_end,
+                    "reported_date": reported_date,
+                    "value": float(value),
+                    "unit": _metric_unit(metric),
+                    "is_restated": False,
+                }
+            )
+
+    if not rows:
+        return pd.DataFrame({col: [] for col in _FUNDAMENTAL_COLUMNS})
+
+    df = pd.DataFrame(rows, columns=_FUNDAMENTAL_COLUMNS)
+    return df.sort_values(["ticker", "metric", "period_end"]).reset_index(drop=True)
+
+
+def _first_available_row(statement: pd.DataFrame, aliases: tuple[str, ...]) -> pd.Series | None:
+    """Return the first matching yfinance statement row for the alias list."""
+    for alias in aliases:
+        if alias in statement.index:
+            row: pd.Series = statement.loc[statement.index == alias].iloc[0]
+            return row
+    return None
+
+
+def _period_to_date(period: object) -> dt.date:
+    """Convert a yfinance statement column label into a date."""
+    if isinstance(period, pd.Timestamp):
+        return period.date()
+    if isinstance(period, dt.datetime):
+        return period.date()
+    if isinstance(period, dt.date):
+        return period
+    return pd.Timestamp(str(period)).date()
+
+
+def _metric_unit(metric: str) -> str:
+    """Compact unit label that fits the DB's `unit` column."""
+    return "shares" if metric == "ordinary_shares" else "currency"
 
 
 class YFinanceDataSource:
@@ -206,9 +346,41 @@ class YFinanceDataSource:
         as_of_date: dt.date,
         metrics: list[str],
     ) -> pd.DataFrame:
-        raise NotImplementedError(
-            "Fundamentals ingestion lands in Phase 1 Days 9-11 — see PHASE_1_CHECKLIST.md"
+        if not tickers or not metrics:
+            return pd.DataFrame()
+
+        stmt = text(
+            """
+            SELECT DISTINCT ON (ticker, metric)
+                   provider, ticker, metric, period_end, reported_date,
+                   value, unit, is_restated
+            FROM fundamentals_pit
+            WHERE provider = :provider
+              AND ticker IN :tickers
+              AND metric IN :metrics
+              AND reported_date <= :as_of_date
+            ORDER BY ticker, metric, reported_date DESC, period_end DESC
+            """
+        ).bindparams(
+            bindparam("tickers", expanding=True),
+            bindparam("metrics", expanding=True),
         )
+
+        with sync_session() as session:
+            rows = (
+                session.execute(
+                    stmt,
+                    {
+                        "provider": PROVIDER_NAME,
+                        "tickers": tickers,
+                        "metrics": metrics,
+                        "as_of_date": as_of_date,
+                    },
+                )
+                .mappings()
+                .all()
+            )
+        return pd.DataFrame(rows)
 
     def get_fundamentals_history(
         self,
@@ -217,9 +389,41 @@ class YFinanceDataSource:
         end: dt.date,
         metrics: list[str],
     ) -> pd.DataFrame:
-        raise NotImplementedError(
-            "Fundamentals ingestion lands in Phase 1 Days 9-11 — see PHASE_1_CHECKLIST.md"
+        if not tickers or not metrics:
+            return pd.DataFrame()
+
+        stmt = text(
+            """
+            SELECT provider, ticker, metric, period_end, reported_date,
+                   value, unit, is_restated
+            FROM fundamentals_pit
+            WHERE provider = :provider
+              AND ticker IN :tickers
+              AND metric IN :metrics
+              AND reported_date BETWEEN :start AND :end
+            ORDER BY ticker, metric, reported_date, period_end
+            """
+        ).bindparams(
+            bindparam("tickers", expanding=True),
+            bindparam("metrics", expanding=True),
         )
+
+        with sync_session() as session:
+            rows = (
+                session.execute(
+                    stmt,
+                    {
+                        "provider": PROVIDER_NAME,
+                        "tickers": tickers,
+                        "metrics": metrics,
+                        "start": start,
+                        "end": end,
+                    },
+                )
+                .mappings()
+                .all()
+            )
+        return pd.DataFrame(rows)
 
     def get_macro(
         self,
@@ -249,6 +453,12 @@ class YFinanceDataSource:
         return [row[0] for row in rows]
 
     def list_available_metrics(self) -> list[str]:
-        raise NotImplementedError(
-            "Fundamentals ingestion lands in Phase 1 Days 9-11 — see PHASE_1_CHECKLIST.md"
-        )
+        with sync_session() as session:
+            rows = session.execute(
+                text(
+                    "SELECT DISTINCT metric FROM fundamentals_pit "
+                    "WHERE provider = :provider ORDER BY metric"
+                ),
+                {"provider": PROVIDER_NAME},
+            ).all()
+        return [row[0] for row in rows]
