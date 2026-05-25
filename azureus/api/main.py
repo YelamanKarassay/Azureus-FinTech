@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from azureus import __version__
+from azureus.api.routes import backtests, features, strategies
 
 app = FastAPI(
     title="Azureus API",
@@ -21,6 +22,9 @@ app = FastAPI(
     redoc_url="/api/v1/redoc",
     openapi_url="/api/v1/openapi.json",
 )
+app.include_router(strategies.router)
+app.include_router(features.router)
+app.include_router(backtests.router)
 
 
 class HealthResponse(BaseModel):

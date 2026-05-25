@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def get_git_sha() -> str | None:
     """Return current HEAD SHA, or `None` if not in a git repo."""
+    env_sha = os.environ.get("GIT_SHA")
+    if env_sha:
+        return env_sha
     try:
         out = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
@@ -39,6 +43,9 @@ def is_git_status_clean() -> bool:
     Defaults to `False` if not in a git repo — the safer assumption for
     reproducibility audits.
     """
+    env_clean = os.environ.get("GIT_STATUS_CLEAN")
+    if env_clean is not None:
+        return env_clean.lower() in {"1", "true", "yes"}
     try:
         out = subprocess.check_output(
             ["git", "status", "--porcelain"],

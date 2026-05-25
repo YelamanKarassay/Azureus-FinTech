@@ -1,0 +1,13 @@
+{$AZUREUS_SITE_ADDRESS::80} {
+	root * /srv/frontend
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

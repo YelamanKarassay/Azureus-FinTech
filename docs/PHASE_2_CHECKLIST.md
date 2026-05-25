@@ -97,22 +97,27 @@
 - Execution timing = same-day close, one-day signal lag (Hard Rule 1 + §4.6). Sizing uses today's close (same price as the fill).
 - Trading calendar drives the simulation step. Non-trading days are skipped entirely.
 - `StrategyContext.as_of_date = previous_trading_day(sim_date)` — strategy's DataSource queries see data through D-1.
-- Tickers missing fill prices on a rebalance day are silently skipped (Day 19 will choose: warn vs raise).
-- Engine returns raw `Portfolio` for Day 18; Day 20 introduces `BacktestResult` and refactors the return type.
+- Target tickers missing fill prices on a rebalance day are logged and skipped; held tickers missing mark-to-market prices fail hard.
+- Engine returned raw `Portfolio` for Day 18; Day 20 refactored `run()` to return `BacktestResult`.
 
-### Day 19 — Engine completeness + edge cases (next)
+### Day 19 — Engine completeness + edge cases
 
-- [ ] Multi-rebalance test with cash flow + costs verification
-- [ ] Liquidity filter: tickers missing fill prices → log + skip (decide: warn-only vs raise)
-- [ ] Deliberately-leaky strategy → audit wrapper raises `LookaheadError` mid-run
-- [ ] Missing held-ticker price on mark-to-market → engine surfaces the KeyError from Portfolio
-- [ ] MDV insufficient data → `ValueError` surfaced as flow failure (already raises; need a test)
+- [x] Multi-rebalance test with cash flow + costs verification
+- [x] Liquidity filter: tickers missing fill prices → log + skip
+- [x] Deliberately-leaky strategy → audit wrapper raises `LookaheadError` mid-run
+- [x] Missing held-ticker price on mark-to-market → engine surfaces the KeyError from Portfolio
+- [x] MDV insufficient data → `ValueError` surfaced as flow failure
+
+**Locked decisions (Day 19):**
+- Missing **target** fill prices are warn-and-skip. The ticker is treated as untradeable for that rebalance day; this avoids failing an entire backtest because a new target has a bad print / suspension / provider gap.
+- Missing **held** mark-to-market prices remain hard failures. Once the portfolio owns a ticker, silently carrying stale marks would corrupt the equity curve.
+- Insufficient MDV history remains a hard failure. Slippage cannot be priced honestly without a minimum liquidity history.
 
 ---
 
 ## Day 20 — Metrics + BacktestResult
 
-- [ ] `azureus/backtesting/metrics.py`:
+- [x] `azureus/backtesting/metrics.py`:
   - `annualized_return(returns)` — geometric, daily returns annualized
   - `annualized_vol(returns)` — daily stdev × sqrt(252)
   - `sharpe(returns, rf=0)` — **from daily returns**, annualized (per CLAUDE.md "Common Mistakes" #2)
@@ -121,16 +126,18 @@
   - `drawdown_series(equity)` — running peak − current, normalized
   - `max_drawdown_with_duration(equity)` — returns `(depth, peak_date, trough_date, recovery_date, duration_days)`. **Peak-to-recovery duration** per CLAUDE.md "Common Mistakes" #3. If still under water, recovery_date is `None` and duration counts to last observation
   - `turnover(weight_series)`, `% positive months`, `skew`, `kurtosis`
-- [ ] `azureus/backtesting/results.py` — `BacktestResult` Pydantic container:
+- [x] `azureus/backtesting/results.py` — `BacktestResult` Pydantic container:
   - `summary: dict[str, float]` — scalars
   - `equity_curve: pd.DataFrame` — date, total_value, daily_return
   - `holdings: pd.DataFrame` — date, ticker, weight, shares
   - `trades: pd.DataFrame` — executed trades with all cost components broken out
   - `as_dict()` → JSONB-serializable for `backtest_results.summary` etc.
-- [ ] `tests/test_metrics.py` — known time-series produces known metrics:
+- [x] `tests/test_metrics.py` — known time-series produces known metrics:
   - Constant 1% daily return → Sharpe = (0.01 × 252) / (0 × sqrt(252)) = ∞ — assert sentinel handling
   - U-shaped drawdown of -20% → duration counts to actual recovery date
   - Synthetic returns with known stdev → annualized vol within rounding
+- [x] `tests/test_results.py` — `BacktestResult.from_portfolio(...)` and `as_dict()` JSON-safe serialization
+- [x] `BacktestEngine.run()` now returns `BacktestResult` with equity curve, holdings, trades, and summary metrics
 
 **Locked decisions:**
 - Daily returns are the input to all return-based metrics. Never monthly. Never weekly (per CLAUDE.md "Common Mistakes" #2 — this is non-negotiable).
@@ -142,7 +149,7 @@
 
 ## Day 21 — Strategy ABC + Strategy 0
 
-- [ ] `azureus/strategies/base.py` — the locked `Strategy` ABC contract per ARCHITECTURE §4.3:
+- [x] `azureus/strategies/base.py` — the locked `Strategy` ABC contract per ARCHITECTURE §4.3:
   - `id: str` class attribute
   - `name: str` class attribute
   - `description: str` class attribute
@@ -152,14 +159,14 @@
   - `rebalance_dates(self, start, end) -> list[date]` — abstract
   - `target_weights(self, ctx: StrategyContext) -> dict[str, float]` — abstract
   - `fit(self, train_start, train_end) -> None` — optional, for ML strategies (Phase 4)
-- [ ] `azureus/strategies/base.py` — `StrategyContext` Pydantic value object: `as_of_date`, `universe: list[str]`, `portfolio_value: float`, `current_weights: dict[str, float]` (frozen)
-- [ ] `azureus/strategies/benchmark.py` — Strategy 0:
+- [x] `azureus/strategies/base.py` — `StrategyContext` Pydantic value object: `as_of_date`, `universe: list[str]`, `portfolio_value: float`, `current_weights: dict[str, float]` (frozen)
+- [x] `azureus/strategies/benchmark.py` — Strategy 0:
   - `EqualWeightedHSIBenchmark`
   - Rebalance quarterly on the first trading day of Jan/Apr/Jul/Oct
   - Target weights: equal-weight every HSI member returned by `data_source.get_universe('HSI', as_of_date)`
   - Documented deviation from true cap-weighted HSI — see "Open Question 2" below
-- [ ] `azureus/strategies/registry.py` — central `_STRATEGIES` dict; `@register` decorator; `list_strategies()`, `get_strategy(id)`
-- [ ] `tests/test_strategies_benchmark.py` — Strategy 0 unit tests:
+- [x] `azureus/strategies/registry.py` — central `_STRATEGIES` dict; `@register` decorator; `list_strategies()`, `get_strategy(id)`
+- [x] `tests/test_strategies_benchmark.py` — Strategy 0 unit tests:
   - Rebalance dates land on quarterly trading days
   - Target weights sum to 1.0 (within rounding)
   - Universe shrinks correctly when a member has no data (0011.HK should be excluded)
@@ -173,21 +180,40 @@
 
 ## Day 22 — End-to-end run + Phase 2 exit
 
-- [ ] `scripts/run_benchmark_backtest.py` — CLI to run Strategy 0 over a date range:
+- [x] `scripts/run_benchmark_backtest.py` — CLI to run Strategy 0 over a date range:
   ```
   uv run python -m scripts.run_benchmark_backtest \
       --start 2014-01-01 --end 2026-05-22 \
       --initial-capital 1000000
   ```
   Outputs: summary metrics to stdout, optionally writes `BacktestResult` JSON to disk
-- [ ] **Golden-output regression test** per CLAUDE.md "Required tests":
-  - `tests/test_benchmark_regression.py` — runs Strategy 0 on the deterministic synthetic corpus (built in conftest from a fixed seed), asserts known Sharpe / max-drawdown / total-return within tolerance
+- [x] **Golden-output regression test** per CLAUDE.md "Required tests":
+  - `tests/test_benchmark_regression.py` — runs Strategy 0 on a deterministic two-ticker synthetic corpus, asserts known Sharpe / max-drawdown / total-return within tolerance
   - This test is the canary for the engine: if it changes, somebody changed the engine semantics
-- [ ] Sanity-check the live run against the actual HSI index:
-  - Ingest `^HSI` via `ingest_prices_batch --tickers ^HSI` (or document why yfinance won't accept ^HSI for HK index)
-  - Compare Strategy 0's equity curve to `^HSI` total return over the same window
-  - Annualized return should be in the same ballpark (HSI averaged ~5–8% over 2014–2024 per public data); document the gap given equal-weighting bias
-- [ ] **Phase 2 exit criterion (per ARCHITECTURE §9.2):** the one-line command above produces a 10y benchmark backtest. Annualized return / Sharpe / max DD all reported. Golden regression test green.
+- [x] Sanity-check the live run against the actual HSI index:
+  - `^HSI` is not persisted in the local DB, but `fetch_prices_from_yfinance("^HSI", ...)` returns 3,047 rows for 2014-01-02 → 2026-05-22
+  - Same-window `^HSI` price-index move: 23,340.05 → 25,606.03. Strategy 0 live run is much higher because it is equal-weighted over constituents, not cap-weighted, and `^HSI` is a price index rather than a total-return index
+- [x] **Phase 2 exit criterion (per ARCHITECTURE §9.2):** the one-line command above produces a 10y benchmark backtest. Annualized return / Sharpe / max DD all reported. Golden regression test green.
+
+**Live Phase 2 exit run (2026-05-25):**
+
+```text
+uv run python -m scripts.run_benchmark_backtest --start 2014-01-01 --end 2026-05-22 --initial-capital 1000000
+
+Final value:    2270726.65
+Total return:   127.07%
+Ann. return:    7.02%
+Ann. vol:       21.01%
+Sharpe:         0.43
+Max drawdown:   -45.31%
+DD duration:    1920 days
+Total trades:   2986
+Total costs:    8064.85
+```
+
+**Additional Day 22 fixes discovered by the live run:**
+- Strategy 0 excludes tickers without enough positive recent volume and freezes already-held untradeable names at their current weights so the engine does not attempt impossible zero-MDV liquidations.
+- `azureus/utils/dates.py` adds explicit HKEX ad-hoc closure overrides for 2023-09-01 and 2023-09-08, matching observed missing market data and preventing false mark-to-market failures.
 
 ---
 
