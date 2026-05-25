@@ -47,8 +47,8 @@ export function defaultFormValues(schema: JsonSchema): BacktestFormValues {
   }
 
   return {
-    start: '2024-01-02',
-    end: '2024-03-28',
+    start: '2026-04-01',
+    end: '2026-05-22',
     initial_capital: 1_000_000,
     random_seed: 0,
     params,

@@ -13,6 +13,7 @@ from azureus.features.registry import register
 _TRADING_DAYS_PER_YEAR = 252
 _MOMENTUM_SKIP_DAYS = 21
 _MOMENTUM_LOOKBACK_DAYS = 252
+_FULL_YEAR_LOOKBACK_DAYS = 420
 _MIN_BETA_OBSERVATIONS = 126
 
 
@@ -23,7 +24,7 @@ class Momentum121:
     description = "12-month momentum skipping the most recent month."
     family = "momentum"
     requires_metrics: tuple[str, ...] = ()
-    requires_lookback_days = 420
+    requires_lookback_days = _FULL_YEAR_LOOKBACK_DAYS
 
     def compute(
         self,
@@ -59,7 +60,7 @@ class RealizedVol252D:
     description = "Negative annualized 252-day realized volatility."
     family = "low_vol"
     requires_metrics: tuple[str, ...] = ()
-    requires_lookback_days = 370
+    requires_lookback_days = _FULL_YEAR_LOOKBACK_DAYS
 
     def compute(
         self,
@@ -92,7 +93,7 @@ class Beta252D:
     description = "Negative 252-day beta to the equal-weight universe return."
     family = "low_vol"
     requires_metrics: tuple[str, ...] = ()
-    requires_lookback_days = 370
+    requires_lookback_days = _FULL_YEAR_LOOKBACK_DAYS
 
     def compute(
         self,
