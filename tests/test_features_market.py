@@ -126,6 +126,12 @@ def test_realized_vol_252d_is_sign_flipped() -> None:
     assert values["VOL.HK"] < 0.0
 
 
+def test_full_year_market_features_request_enough_calendar_history() -> None:
+    assert momentum_12_1.requires_lookback_days >= 420
+    assert realized_vol_252d.requires_lookback_days >= 420
+    assert beta_252d.requires_lookback_days >= 420
+
+
 def test_beta_252d_is_sign_flipped() -> None:
     data = _market_feature_source()
 
