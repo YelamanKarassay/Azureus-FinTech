@@ -133,14 +133,25 @@ Production currently runs on a single Azure VM:
 - Postgres/TimescaleDB stores market data, jobs, and backtest results
 - The worker executes all backtests asynchronously
 
-Manual production deploy uses:
+Pushes to `main` deploy automatically after the CI workflow passes. The deploy
+workflow builds the Vite frontend in GitHub Actions, uploads a release bundle to
+the Azure VM, rebuilds the API/worker images on the VM, runs Alembic migrations,
+restarts Docker Compose, and smoke-tests `/api/v1/health`.
+
+Required GitHub Actions secrets:
+
+- `AZURE_VM_HOST`
+- `AZURE_VM_USER`
+- `AZURE_VM_SSH_KEY`
+- `AZURE_VM_PORT` optional, defaults to `22`
+- `AZURE_VM_APP_DIR` optional, defaults to `/home/azureuser/azureus`
+
+Manual production deploy fallback:
 
 ```bash
 cd ~/azureus
-sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+bash scripts/deploy_production.sh
 ```
-
-Push-to-main auto-deploy is still a Phase 0 carryover item.
 
 ## Methodology Guardrails
 
