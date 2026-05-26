@@ -21,6 +21,37 @@ export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 export GIT_SHA="${GIT_SHA:-unknown}"
 export GIT_STATUS_CLEAN="${GIT_STATUS_CLEAN:-true}"
 
+upsert_env_value() {
+  local key="$1"
+  local value="$2"
+
+  if grep -q "^${key}=" .env.prod; then
+    python - "$key" "$value" <<'PY'
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+key = sys.argv[1]
+value = sys.argv[2]
+path = Path(".env.prod")
+lines = path.read_text().splitlines()
+path.write_text(
+    "\n".join(
+        f"{key}={value}" if line.startswith(f"{key}=") else line for line in lines
+    )
+    + "\n"
+)
+PY
+  else
+    printf "%s=%s\n" "$key" "$value" >> .env.prod
+  fi
+}
+
+upsert_env_value BUILD_TIME "${BUILD_TIME}"
+upsert_env_value GIT_SHA "${GIT_SHA}"
+upsert_env_value GIT_STATUS_CLEAN "${GIT_STATUS_CLEAN}"
+
 compose() {
   if docker info >/dev/null 2>&1; then
     docker compose "$@"
