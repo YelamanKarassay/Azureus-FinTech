@@ -32,6 +32,30 @@ services:
       retries: 5
     restart: unless-stopped
 
+  mlflow:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    container_name: azureus-mlflow
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg://${POSTGRES_USER:-azureus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${MLFLOW_POSTGRES_DB:-mlflow}
+      MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-/var/azureus/mlflow_artifacts}
+    command:
+      [
+        "sh",
+        "-c",
+        "mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri \"$${MLFLOW_BACKEND_STORE_URI}\" --default-artifact-root \"$${MLFLOW_ARTIFACT_ROOT}\"",
+      ]
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_artifacts:/var/azureus/mlflow_artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
+  mlflow_artifacts:

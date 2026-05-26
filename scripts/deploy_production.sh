@@ -44,10 +44,17 @@ COMPOSE_ARGS=(
 if [[ -n "${AZUREUS_API_IMAGE:-}" || -n "${AZUREUS_WORKER_IMAGE:-}" ]]; then
   compose "${COMPOSE_ARGS[@]}" pull api worker
 else
-  compose "${COMPOSE_ARGS[@]}" build api worker
+  compose "${COMPOSE_ARGS[@]}" build api worker mlflow
 fi
 
 compose "${COMPOSE_ARGS[@]}" run --rm api alembic upgrade head
+MLFLOW_DB="${MLFLOW_POSTGRES_DB:-mlflow}"
+compose "${COMPOSE_ARGS[@]}" exec -T postgres env "MLFLOW_DB=${MLFLOW_DB}" sh -c '
+  if ! psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+    "SELECT 1 FROM pg_database WHERE datname = '\''$MLFLOW_DB'\''" | grep -q 1; then
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE DATABASE \"$MLFLOW_DB\""
+  fi
+'
 compose "${COMPOSE_ARGS[@]}" up -d --remove-orphans
 compose "${COMPOSE_ARGS[@]}" ps
 

@@ -2,7 +2,7 @@
 
 Open-source educational research platform for systematic equity strategies on Hong Kong equities.
 
-**Status:** Phase 3 complete. Azureus is deployed with HTTPS at [azureus.tech](https://azureus.tech). Phase 4 is next: Strategy 2, purged CV, LightGBM, and MLflow.
+**Status:** Phase 4 implementation is underway. Azureus is deployed with HTTPS at [azureus.tech](https://azureus.tech); the Phase 4 branch adds Strategy 2, Webull-backed public prices, purged CV, LightGBM, diagnostics, and MLflow.
 
 - Live app: [https://azureus.tech](https://azureus.tech)
 - API docs: [https://azureus.tech/api/v1/docs](https://azureus.tech/api/v1/docs)
@@ -19,11 +19,12 @@ Azureus is a portfolio and learning project for rigorous quant research workflow
 - Point-in-time data access through a provider-agnostic `DataSource` interface
 - Strategy 0: equal-weight HSI benchmark
 - Strategy 1: multi-factor cross-sectional long-only strategy
+- Strategy 2: LightGBM factor strategy with purged CV and walk-forward training
 - Async backtest execution through FastAPI, Redis Queue, and Postgres
 - Persisted backtest results with equity curves, holdings, trades, costs, and summary metrics
 - React/TanStack frontend for running strategy backtests and reviewing results
 
-The public deployment uses demo-grade free data from yfinance. Bloomberg-derived data is intentionally excluded from the public repo and deployment.
+The public deployment uses free public data. `public_free` combines Webull historical prices (`provider='webull'`) with yfinance annual/quarterly fundamentals (`provider='yfinance'`) using a conservative PIT reporting lag. Bloomberg-derived data is intentionally excluded from the public repo and deployment.
 
 ## What This Is Not
 
@@ -42,7 +43,17 @@ Phase 3 delivered the first complete vertical slice:
 - Frontend strategy gallery, parameter form, polling, and result dashboard
 - Production deployment on an Azure VM behind Caddy with automatic HTTPS
 
-Phase 4 will add the ML strategy path: purged k-fold, walk-forward validation, LightGBM, and MLflow tracking.
+Phase 4 adds the ML strategy path:
+
+- Webull daily price ingestion from `2018-01-01` where available
+- Annual plus quarterly yfinance fundamentals with 90-day `reported_date` lag
+- Hybrid `public_free` data provider for public Strategy 2 jobs
+- `gbm_factors_v1` with 21-trading-day sector-neutral labels
+- Expanding walk-forward LightGBM training with purged k-fold CV
+- Result diagnostics: IC series, IC summary stats, feature importance, and MLflow run IDs
+- Read-only `/api/v1/ml/runs` endpoints
+- Frontend generic JSON-schema params, IC chart, and MLflow links
+- Compose/Caddy wiring for protected `https://mlflow.azureus.tech`
 
 ## Local Development
 
@@ -94,6 +105,7 @@ Local URLs:
 - API: `http://localhost:8000`
 - OpenAPI: `http://localhost:8000/api/v1/docs`
 - Health: `http://localhost:8000/api/v1/health`
+- MLflow: `http://localhost:5000`
 
 ## Useful Commands
 
@@ -123,6 +135,12 @@ uv run python -m scripts.run_benchmark_backtest \
   --initial-capital 1000000
 ```
 
+Ingest Webull public prices:
+
+```bash
+uv run python -m azureus.pipelines.ingest_prices_webull --all-active --start 2018-01-01
+```
+
 ## Production
 
 Production currently runs on a single Azure VM:
@@ -131,6 +149,7 @@ Production currently runs on a single Azure VM:
 - FastAPI serves `/api/v1/*`
 - Redis powers the RQ backtest queue
 - Postgres/TimescaleDB stores market data, jobs, and backtest results
+- MLflow tracks Strategy 2 training runs behind Caddy Basic Auth
 - The worker executes all backtests asynchronously
 
 Pushes to `main` deploy automatically after the CI workflow passes. The deploy

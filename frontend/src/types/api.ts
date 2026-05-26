@@ -10,7 +10,7 @@ export interface JsonSchemaProperty {
   default?: unknown
   minimum?: number
   maximum?: number
-  enum?: string[]
+  enum?: JsonValue[]
   type?: string
 }
 
@@ -44,7 +44,7 @@ export interface BacktestCreateRequest {
   start: string
   end: string
   initial_capital: number
-  data_provider: 'yfinance'
+  data_provider: 'yfinance' | 'public_free'
   random_seed: number
 }
 
@@ -104,6 +104,7 @@ export interface BacktestResultResponse {
   equity_curve: EquityCurveRow[]
   holdings: HoldingRow[]
   trades: TradeRow[]
+  diagnostics?: Record<string, JsonValue> | null
 }
 
 export type JsonValue =

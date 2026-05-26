@@ -238,6 +238,7 @@ class BacktestResult(Base):
     equity_curve: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     holdings: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     trades: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    diagnostics: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

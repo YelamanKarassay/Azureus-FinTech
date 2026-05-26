@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from azureus.api.main import app
+from azureus.strategies.gbm_factors_v1 import GBMFactorsV1Strategy
 from azureus.strategies.multi_factor_v1 import MultiFactorV1Strategy
 
 
@@ -16,6 +17,7 @@ def test_strategy_catalog_lists_registered_strategies() -> None:
     assert response.status_code == 200
     strategy_ids = {item["id"] for item in response.json()}
     assert "benchmark_equal_weight_hsi" in strategy_ids
+    assert GBMFactorsV1Strategy.id in strategy_ids
     assert MultiFactorV1Strategy.id in strategy_ids
 
 
@@ -28,6 +30,12 @@ def test_strategy_params_schema_is_served() -> None:
     schema = response.json()
     assert schema["title"] == "MultiFactorV1Params"
     assert "n_long" in schema["properties"]
+
+    strategy2_response = client.get(f"/api/v1/strategies/{GBMFactorsV1Strategy.id}/params-schema")
+    assert strategy2_response.status_code == 200
+    strategy2_schema = strategy2_response.json()
+    assert strategy2_schema["title"] == "GBMFactorsV1Params"
+    assert "training_warmup_years" in strategy2_schema["properties"]
 
 
 def test_feature_catalog_lists_registered_features() -> None:

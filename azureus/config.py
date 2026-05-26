@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     database_url: str = ""
     database_url_sync: str = ""
     redis_url: str = "redis://localhost:6379/0"
+    mlflow_tracking_uri: str = "http://localhost:5000"
+    mlflow_artifact_root: str = "/var/azureus/mlflow_artifacts"
 
 
 @lru_cache(maxsize=1)

@@ -176,7 +176,7 @@ def fetch_fundamentals_from_yfinance(
     *,
     today: dt.date | None = None,
 ) -> pd.DataFrame:
-    """Fetch quarterly yfinance statements and normalize to `fundamentals_pit`.
+    """Fetch yfinance statements and normalize annual+quarterly PIT rows.
 
     yfinance does not provide true announcement timestamps consistently for
     HK equities. For the public demo path we use a conservative PIT proxy:
@@ -187,9 +187,12 @@ def fetch_fundamentals_from_yfinance(
     as_of_today = today or dt.date.today()
     handle = yf.Ticker(ticker)
     statements = {
-        "income": handle.quarterly_income_stmt,
-        "balance": handle.quarterly_balance_sheet,
-        "cashflow": handle.quarterly_cashflow,
+        "income": _merge_statement_frames(handle.quarterly_income_stmt, handle.income_stmt),
+        "balance": _merge_statement_frames(
+            handle.quarterly_balance_sheet,
+            handle.balance_sheet,
+        ),
+        "cashflow": _merge_statement_frames(handle.quarterly_cashflow, handle.cashflow),
     }
     return _normalize_yfinance_fundamentals(ticker, statements, as_of_today)
 
@@ -244,6 +247,16 @@ def _first_available_row(statement: pd.DataFrame, aliases: tuple[str, ...]) -> p
     return None
 
 
+def _merge_statement_frames(*frames: pd.DataFrame) -> pd.DataFrame:
+    """Merge yfinance annual and quarterly statement frames by statement row."""
+    usable = [frame for frame in frames if not frame.empty]
+    if not usable:
+        return pd.DataFrame()
+    merged = pd.concat(usable, axis=1, join="outer")
+    merged = merged.loc[:, ~merged.columns.duplicated()]
+    return merged
+
+
 def _period_to_date(period: object) -> dt.date:
     """Convert a yfinance statement column label into a date."""
     if isinstance(period, pd.Timestamp):
@@ -264,6 +277,8 @@ class YFinanceDataSource:
     """Read implementation of `DataSource` over our `yfinance`-provider tables."""
 
     provider_name: str = PROVIDER_NAME
+    price_provider_name: str = PROVIDER_NAME
+    fundamentals_provider_name: str = PROVIDER_NAME
 
     def get_universe(self, index_id: str, as_of_date: dt.date) -> list[str]:
         with sync_session() as session:
@@ -329,7 +344,7 @@ class YFinanceDataSource:
                 session.execute(
                     stmt,
                     {
-                        "provider": PROVIDER_NAME,
+                        "provider": self.price_provider_name,
                         "tickers": tickers,
                         "start": start,
                         "end": end,
@@ -371,7 +386,7 @@ class YFinanceDataSource:
                 session.execute(
                     stmt,
                     {
-                        "provider": PROVIDER_NAME,
+                        "provider": self.fundamentals_provider_name,
                         "tickers": tickers,
                         "metrics": metrics,
                         "as_of_date": as_of_date,
@@ -413,7 +428,7 @@ class YFinanceDataSource:
                 session.execute(
                     stmt,
                     {
-                        "provider": PROVIDER_NAME,
+                        "provider": self.fundamentals_provider_name,
                         "tickers": tickers,
                         "metrics": metrics,
                         "start": start,
@@ -459,6 +474,6 @@ class YFinanceDataSource:
                     "SELECT DISTINCT metric FROM fundamentals_pit "
                     "WHERE provider = :provider ORDER BY metric"
                 ),
-                {"provider": PROVIDER_NAME},
+                {"provider": self.fundamentals_provider_name},
             ).all()
         return [row[0] for row in rows]

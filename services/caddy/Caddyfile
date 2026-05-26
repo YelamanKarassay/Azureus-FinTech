@@ -11,3 +11,13 @@
 		file_server
 	}
 }
+
+{$MLFLOW_SITE_ADDRESS:mlflow.azureus.tech} {
+	encode zstd gzip
+
+	basic_auth {
+		{$MLFLOW_BASIC_AUTH_USER:admin} {$MLFLOW_BASIC_AUTH_HASH}
+	}
+
+	reverse_proxy mlflow:5000
+}
