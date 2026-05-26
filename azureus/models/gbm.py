@@ -113,9 +113,7 @@ def spearman_ic(predictions: pd.Series, labels: pd.Series) -> float:
     ).dropna()
     if len(aligned) < 3:
         return float("nan")
-    corr = aligned.iloc[:, 0].rank(method="average").corr(
-        aligned.iloc[:, 1].rank(method="average")
-    )
+    corr = aligned.iloc[:, 0].rank(method="average").corr(aligned.iloc[:, 1].rank(method="average"))
     return float(corr) if pd.notna(corr) else float("nan")
 
 

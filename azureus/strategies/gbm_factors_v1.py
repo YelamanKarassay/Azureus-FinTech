@@ -92,8 +92,7 @@ class GBMFactorsV1Strategy(Strategy):
             oos_window_months=params.oos_window_months,
         )
         sample_dates = [
-            previous_trading_day(date)
-            for date in self.rebalance_dates(train_start, train_end)
+            previous_trading_day(date) for date in self.rebalance_dates(train_start, train_end)
         ]
         dataset = build_strategy2_dataset(
             strategy=self,
@@ -184,9 +183,7 @@ class GBMFactorsV1Strategy(Strategy):
             name="prediction",
         )
         sectors = (
-            self._sectors_for(list(predictions.index))
-            if self.gbm_params.sector_neutral
-            else None
+            self._sectors_for(list(predictions.index)) if self.gbm_params.sector_neutral else None
         )
         selected = _select_long_tickers(
             scores=predictions,
@@ -212,8 +209,7 @@ class GBMFactorsV1Strategy(Strategy):
             return raw
         sectors = self._sectors_for(list(raw.index)) if self.gbm_params.sector_neutral else None
         scored = {
-            column: sector_rank_zscore(raw[column], sectors=sectors)
-            for column in raw.columns
+            column: sector_rank_zscore(raw[column], sectors=sectors) for column in raw.columns
         }
         return feature_matrix(scored, tickers=list(raw.index)).dropna(how="any")
 
