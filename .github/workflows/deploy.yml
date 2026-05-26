@@ -123,7 +123,7 @@ jobs:
             GIT_STATUS_CLEAN=true \
             BUILD_TIME="${BUILD_TIME}" \
             AZUREUS_PUBLIC_HEALTH_URL="${HEALTH_URL}" \
-              bash scripts/deploy_production.sh
+              bash scripts/deploy_production.sh </dev/null
 
             ln -sfn "${release_dir}" "${DEPLOY_ROOT}/current"
             rm -f "/tmp/azureus-${DEPLOY_SHA}.tar.gz"
