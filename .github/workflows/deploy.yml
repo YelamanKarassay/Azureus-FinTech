@@ -1,0 +1,133 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Azure VM
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ secrets.AZURE_VM_HOST }}
+      DEPLOY_PORT: ${{ secrets.AZURE_VM_PORT || '22' }}
+      DEPLOY_USER: ${{ secrets.AZURE_VM_USER }}
+      DEPLOY_ROOT: ${{ secrets.AZURE_VM_APP_DIR || '/home/azureuser/azureus' }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      HEALTH_URL: https://azureus.tech/api/v1/health
+
+    steps:
+      - name: Validate deploy secrets
+        env:
+          SSH_KEY: ${{ secrets.AZURE_VM_SSH_KEY }}
+        run: |
+          test -n "${DEPLOY_HOST}"
+          test -n "${DEPLOY_PORT}"
+          test -n "${DEPLOY_USER}"
+          test -n "${SSH_KEY}"
+
+      - name: Checkout deploy revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Set build metadata
+        run: echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_ENV}"
+
+      - name: Package release
+        run: |
+          tar \
+            --exclude='./.git' \
+            --exclude='./.mypy_cache' \
+            --exclude='./.pytest_cache' \
+            --exclude='./.ruff_cache' \
+            --exclude='./.venv' \
+            --exclude='./frontend/node_modules' \
+            --exclude='./frontend/.vite' \
+            --exclude='./htmlcov' \
+            --exclude='./logs' \
+            --exclude='./mlruns' \
+            -czf "${RUNNER_TEMP}/azureus-${DEPLOY_SHA}.tar.gz" .
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.AZURE_VM_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${SSH_KEY}" > ~/.ssh/azureus_deploy_key
+          chmod 600 ~/.ssh/azureus_deploy_key
+          ssh-keyscan -p "${DEPLOY_PORT}" -H "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Upload release
+        run: |
+          scp \
+            -P "${DEPLOY_PORT}" \
+            -i ~/.ssh/azureus_deploy_key \
+            "${RUNNER_TEMP}/azureus-${DEPLOY_SHA}.tar.gz" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/azureus-${DEPLOY_SHA}.tar.gz"
+
+      - name: Deploy release
+        run: |
+          ssh \
+            -p "${DEPLOY_PORT}" \
+            -i ~/.ssh/azureus_deploy_key \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "DEPLOY_ROOT='${DEPLOY_ROOT}' DEPLOY_SHA='${DEPLOY_SHA}' BUILD_TIME='${BUILD_TIME}' HEALTH_URL='${HEALTH_URL}' bash -s" <<'REMOTE'
+            set -Eeuo pipefail
+
+            release_dir="${DEPLOY_ROOT}/releases/${DEPLOY_SHA}"
+            mkdir -p "${release_dir}"
+            tar -xzf "/tmp/azureus-${DEPLOY_SHA}.tar.gz" -C "${release_dir}"
+
+            if [[ ! -f "${DEPLOY_ROOT}/.env.prod" ]]; then
+              echo "Missing ${DEPLOY_ROOT}/.env.prod on server" >&2
+              exit 1
+            fi
+            cp "${DEPLOY_ROOT}/.env.prod" "${release_dir}/.env.prod"
+
+            cd "${release_dir}"
+            GIT_SHA="${DEPLOY_SHA}" \
+            GIT_STATUS_CLEAN=true \
+            BUILD_TIME="${BUILD_TIME}" \
+            AZUREUS_PUBLIC_HEALTH_URL="${HEALTH_URL}" \
+              bash scripts/deploy_production.sh
+
+            ln -sfn "${release_dir}" "${DEPLOY_ROOT}/current"
+            rm -f "/tmp/azureus-${DEPLOY_SHA}.tar.gz"
+
+            cd "${DEPLOY_ROOT}/releases"
+            ls -1dt */ | tail -n +6 | xargs -r rm -rf
+          REMOTE

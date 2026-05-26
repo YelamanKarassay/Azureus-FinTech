@@ -287,15 +287,15 @@ Pause and check:
 
 > **Update this section as phases progress.**
 
-**Current phase:** Phase 0 public deployment live (automation polish still open) → **Phase 1 complete (2026-05-23)** → **Phase 2 complete (2026-05-25)** → **Phase 3 complete (2026-05-25)** → ready for Phase 4 planning.
+**Current phase:** Phase 0 public deployment live (monitoring polish still open) → **Phase 1 complete (2026-05-23)** → **Phase 2 complete (2026-05-25)** → **Phase 3 complete (2026-05-25)** → ready for Phase 4 planning.
 
 **Phase 3 status (as of 2026-05-25):** Strategy 1 vertical slice is complete: feature registry, demo PIT fundamentals path, multi-factor strategy, FastAPI strategy/feature/backtest endpoints, RQ worker execution, persisted `backtest_results`, and Vite/TanStack Query frontend flow from strategy form to result dashboard. Browser-verified locally at `http://localhost:5173` through FastAPI → RQ → Postgres. Production stack is live at `https://azureus.tech`; public smoke was verified through Caddy → FastAPI → RQ worker → Postgres, with frontend result rendering.
 
 **Phase 0 status (as of 2026-05-25):** Local foundation done — public GitHub repo, two-job CI both green, local Docker Compose for Postgres+TimescaleDB and Redis (verified healthy), FastAPI `/api/v1/health` and `/api/v1/version`, Vite+React+TanStack Query frontend reading the health endpoint via Vite proxy. Production deployment is now live on Azure VM `quantphemes-azure`; `azureus.tech` DNS points to the VM and Caddy has issued valid TLS for `azureus.tech` and `www.azureus.tech`.
 
-**Azure VM deploy status (as of 2026-05-25):** `quantphemes-azure` is reachable and runs the production compose stack at `https://azureus.tech` (Caddy → FastAPI → RQ worker → Postgres/TimescaleDB + Redis). Docker and 2 GiB swap are installed on the VM. Alembic migrations, ticker/universe seed data, and ~900 days of yfinance prices are loaded. DNS cutover and Caddy automatic TLS are complete.
+**Azure VM deploy status (as of 2026-05-26):** `quantphemes-azure` is reachable and runs the production compose stack at `https://azureus.tech` (Caddy → FastAPI → RQ worker → Postgres/TimescaleDB + Redis). Docker and 2 GiB swap are installed on the VM. Alembic migrations, ticker/universe seed data, ~900 days of yfinance prices, and demo yfinance fundamentals are loaded. DNS cutover and Caddy automatic TLS are complete. `.github/workflows/deploy.yml` deploys pushes to `main` after CI passes.
 
-**Phase 0 open items (must close before `v0.1.0-foundation` tag):** optional shared `services/base/Dockerfile`, `.github/workflows/deploy.yml`, UptimeRobot monitor, final production screenshots.
+**Phase 0 open items (must close before `v0.1.0-foundation` tag):** optional shared `services/base/Dockerfile`, UptimeRobot monitor, final production screenshots.
 
 **Phase 0 success criterion (unchanged):** A stranger visiting `azureus.tech` sees a working React page reading a live `/api/v1/health`. TLS valid. CI badge green. Push-to-main auto-deploys in <8 min.
 
