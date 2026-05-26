@@ -26,7 +26,7 @@ upsert_env_value() {
   local value="$2"
 
   if grep -q "^${key}=" .env.prod; then
-    python - "$key" "$value" <<'PY'
+    python3 - "$key" "$value" <<'PY'
 from __future__ import annotations
 
 import sys
