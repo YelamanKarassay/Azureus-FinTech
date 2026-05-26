@@ -135,6 +135,7 @@ async def get_backtest_result(job_id: UUID) -> BacktestResultResponse:
         equity_curve=result.equity_curve or [],
         holdings=result.holdings or [],
         trades=result.trades or [],
+        diagnostics=result.diagnostics,
     )
 
 

@@ -287,7 +287,9 @@ Pause and check:
 
 > **Update this section as phases progress.**
 
-**Current phase:** Phase 0 public deployment live (monitoring polish still open) → **Phase 1 complete (2026-05-23)** → **Phase 2 complete (2026-05-25)** → **Phase 3 complete (2026-05-25)** → ready for Phase 4 planning.
+**Current phase:** Phase 0 public deployment live (monitoring polish still open) → **Phase 1 complete (2026-05-23)** → **Phase 2 complete (2026-05-25)** → **Phase 3 complete (2026-05-25)** → **Phase 4 implementation in progress (2026-05-26)**.
+
+**Phase 4 implementation status (as of 2026-05-26):** Branch work has started for the public ML path: `public_free` provider, Webull price ingestion, annual+quarterly yfinance fundamentals, `gbm_factors_v1`, purged k-fold, walk-forward LightGBM training, result diagnostics, read-only MLflow endpoints, generic frontend params, IC visualization, and MLflow Compose/Caddy wiring. Remaining production steps are adding real Webull secrets to local/prod env files, creating DNS `A` record `mlflow -> 4.222.217.156`, setting Caddy MLflow Basic Auth hash, upgrading the Azure VM to B2s, ingesting Webull coverage, and running the production Strategy 2 smoke.
 
 **Phase 3 status (as of 2026-05-25):** Strategy 1 vertical slice is complete: feature registry, demo PIT fundamentals path, multi-factor strategy, FastAPI strategy/feature/backtest endpoints, RQ worker execution, persisted `backtest_results`, and Vite/TanStack Query frontend flow from strategy form to result dashboard. Browser-verified locally at `http://localhost:5173` through FastAPI → RQ → Postgres. Production stack is live at `https://azureus.tech`; public smoke was verified through Caddy → FastAPI → RQ worker → Postgres, with frontend result rendering.
 

@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import type {
   BacktestFormValues,
   JsonSchema,
+  JsonSchemaProperty,
   JsonValue,
   StrategyParamsPayload,
 } from '../types/api'
@@ -19,6 +20,17 @@ const DEFAULT_FACTOR_WEIGHTS: Record<string, number> = {
   momentum: 0.25,
   low_vol: 0.25,
 }
+
+const CUSTOM_FIELDS = new Set([
+  'universe_id',
+  'rebalance_frequency',
+  'n_long',
+  'weighting_scheme',
+  'liquidity_threshold_usd',
+  'sector_neutral',
+  'factor_weights',
+  'sector_map',
+])
 
 interface StrategyParamsFormProps {
   values: BacktestFormValues
@@ -274,6 +286,20 @@ export function StrategyParamsForm({
         </div>
       )}
 
+      <div className="grid gap-4 md:grid-cols-2">
+        {Object.entries(schema.properties ?? {})
+          .filter(([key]) => !CUSTOM_FIELDS.has(key))
+          .map(([key, property]) => (
+            <GenericField
+              key={key}
+              name={key}
+              property={property}
+              value={params[key]}
+              onChange={(value) => updateParams({ [key]: value })}
+            />
+          ))}
+      </div>
+
       <button
         type="submit"
         disabled={isSubmitting}
@@ -282,6 +308,77 @@ export function StrategyParamsForm({
         {isSubmitting ? 'Queueing backtest' : 'Run backtest'}
       </button>
     </form>
+  )
+}
+
+function GenericField({
+  name,
+  property,
+  value,
+  onChange,
+}: {
+  name: string
+  property: JsonSchemaProperty
+  value: JsonValue | undefined
+  onChange: (value: JsonValue) => void
+}) {
+  const label = property.title ?? humanize(name)
+  if (property.enum && property.enum.length > 0) {
+    return (
+      <label className="space-y-2">
+        <span className="text-sm font-medium text-zinc-700">{label}</span>
+        <select
+          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+          value={String(value ?? property.default ?? property.enum[0])}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {property.enum.map((option) => (
+            <option key={String(option)} value={String(option)}>
+              {String(option)}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+  if (property.type === 'boolean') {
+    return (
+      <label className="flex items-center gap-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-zinc-300"
+          checked={booleanParam(value, Boolean(property.default))}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span className="text-sm font-medium text-zinc-700">{label}</span>
+      </label>
+    )
+  }
+  if (property.type === 'number' || property.type === 'integer') {
+    return (
+      <label className="space-y-2">
+        <span className="text-sm font-medium text-zinc-700">{label}</span>
+        <input
+          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+          type="number"
+          min={property.minimum}
+          max={property.maximum}
+          step={property.type === 'integer' ? 1 : 'any'}
+          value={numberParam(value, numberDefault(property.default, 0))}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+      </label>
+    )
+  }
+  return (
+    <label className="space-y-2">
+      <span className="text-sm font-medium text-zinc-700">{label}</span>
+      <input
+        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+        value={stringParam(value, stringDefault(property.default, ''))}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
   )
 }
 
@@ -308,4 +405,16 @@ function numberRecordParam(
     (entry): entry is [string, number] => typeof entry[1] === 'number',
   )
   return entries.length > 0 ? Object.fromEntries(entries) : fallback
+}
+
+function humanize(value: string): string {
+  return value.replaceAll('_', ' ')
+}
+
+function numberDefault(value: unknown, fallback: number): number {
+  return typeof value === 'number' ? value : fallback
+}
+
+function stringDefault(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback
 }

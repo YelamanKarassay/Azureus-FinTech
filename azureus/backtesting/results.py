@@ -23,6 +23,7 @@ class BacktestResult(BaseModel):
     equity_curve: pd.DataFrame
     holdings: pd.DataFrame
     trades: pd.DataFrame
+    diagnostics: dict[str, Any] | None = None
 
     @classmethod
     def from_portfolio(
@@ -49,6 +50,7 @@ class BacktestResult(BaseModel):
             "equity_curve": _frame_records(self.equity_curve),
             "holdings": _frame_records(self.holdings),
             "trades": _frame_records(self.trades),
+            "diagnostics": _json_safe_value(self.diagnostics),
         }
 
 
@@ -188,6 +190,10 @@ def _json_safe_value(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, float) and not math.isfinite(value):
         return None
+    if isinstance(value, dict):
+        return {key: _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe_value(item) for item in value]
     return value
 
 

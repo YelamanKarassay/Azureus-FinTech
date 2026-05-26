@@ -34,6 +34,10 @@ class WorkerTestStrategy(Strategy):
     description: ClassVar[str] = "Synthetic strategy used by worker tests."
     params_model: ClassVar[type[WorkerTestParams]] = WorkerTestParams
 
+    def fit(self, train_start: dt.date, train_end: dt.date) -> None:
+        self.mlflow_run_ids = {"test_window": "run_123"}
+        self.diagnostics = {"mean_ic": 0.1, "ic_series": []}
+
     @property
     def worker_params(self) -> WorkerTestParams:
         return cast(WorkerTestParams, self.params)
@@ -177,7 +181,7 @@ def test_run_backtest_job_persists_result(
         result = (
             session.execute(
                 text(
-                    "SELECT summary, equity_curve, holdings, trades "
+                    "SELECT summary, equity_curve, holdings, trades, diagnostics "
                     "FROM backtest_results WHERE job_id = :job_id"
                 ),
                 {"job_id": job_id},
@@ -194,6 +198,14 @@ def test_run_backtest_job_persists_result(
     assert result["equity_curve"]
     assert result["holdings"]
     assert result["trades"]
+    assert result["diagnostics"]["mean_ic"] == 0.1
+
+    with sync_session() as session:
+        run_ids = session.execute(
+            text("SELECT mlflow_run_ids FROM jobs WHERE id = :job_id"),
+            {"job_id": job_id},
+        ).scalar_one()
+    assert run_ids == {"test_window": "run_123"}
 
 
 def test_run_backtest_job_marks_failed_on_exception(

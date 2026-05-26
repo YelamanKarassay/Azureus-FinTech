@@ -119,6 +119,7 @@ def test_backtest_status_and_result_endpoints(
                     equity_curve=[{"date": "2024-01-02", "total_value": 1_010_000.0}],
                     holdings=[{"date": "2024-01-02", "ticker": "0700.HK", "weight": 1.0}],
                     trades=[{"ticker": "0700.HK", "shares": 100.0}],
+                    diagnostics={"mean_ic": 0.05, "ic_series": []},
                 )
             )
 
@@ -128,10 +129,36 @@ def test_backtest_status_and_result_endpoints(
 
         assert result_response.status_code == 200
         assert result_response.json()["summary"]["final_value"] == 1_010_000.0
+        assert result_response.json()["diagnostics"]["mean_ic"] == 0.05
         assert equity_response.status_code == 200
         assert equity_response.json()["rows"][0]["total_value"] == 1_010_000.0
         assert list_response.status_code == 200
         assert list_response.json()[0]["job_id"] == str(job_id)
+
+
+def test_create_backtest_accepts_public_free_provider(
+    migrated_database: str,
+    monkeypatch,
+) -> None:
+    enqueued: list[UUID] = []
+    monkeypatch.setattr(backtest_service, "_enqueue_backtest_job", enqueued.append)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/backtests",
+            json={
+                "strategy_id": "gbm_factors_v1",
+                "params": {},
+                "start": "2018-01-01",
+                "end": "2026-05-22",
+                "initial_capital": 1_000_000.0,
+                "data_provider": "public_free",
+                "random_seed": 123,
+            },
+        )
+
+    assert response.status_code == 202
+    assert enqueued == [UUID(response.json()["job_id"])]
 
 
 def test_unknown_backtest_returns_404(migrated_database: str) -> None:

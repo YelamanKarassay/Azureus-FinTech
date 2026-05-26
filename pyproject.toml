@@ -24,6 +24,10 @@ dependencies = [
     "yfinance>=0.2.50",
     "prefect>=3.1",
     "exchange-calendars>=4.5",
+    "lightgbm>=4.6.0",
+    "scikit-learn>=1.8.0",
+    "mlflow>=3.2.0",
+    "webull-openapi-python-sdk>=2.0.8",
 ]
 
 [dependency-groups]
@@ -88,6 +92,9 @@ module = [
     "yfinance.*",
     "prefect.*",
     "exchange_calendars.*",
+    "lightgbm.*",
+    "mlflow.*",
+    "webull.*",
 ]
 ignore_missing_imports = true
 

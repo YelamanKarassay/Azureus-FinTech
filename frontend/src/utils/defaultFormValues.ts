@@ -13,41 +13,34 @@ const DEFAULT_FACTOR_WEIGHTS = {
 
 export function defaultFormValues(schema: JsonSchema): BacktestFormValues {
   const params: StrategyParamsPayload = {}
-  if (hasSchemaProperty(schema, 'universe_id')) {
-    params.universe_id = stringDefault(schema, 'universe_id', 'HSI')
-  }
-  if (hasSchemaProperty(schema, 'rebalance_frequency')) {
-    params.rebalance_frequency = enumDefault(
-      schema,
-      'rebalance_frequency',
-      'monthly',
-    )
-  }
-  if (hasSchemaProperty(schema, 'n_long')) {
-    params.n_long = numberDefault(schema, 'n_long', 20)
-  }
-  if (hasSchemaProperty(schema, 'sector_neutral')) {
-    params.sector_neutral = booleanDefault(schema, 'sector_neutral', true)
-  }
+  Object.entries(schema.properties ?? {}).forEach(([key, property]) => {
+    if (key === 'sector_map') {
+      params.sector_map = {}
+      return
+    }
+    if (key === 'factor_weights') {
+      params.factor_weights = DEFAULT_FACTOR_WEIGHTS
+      return
+    }
+    if (property.default !== undefined && isJsonValue(property.default)) {
+      params[key] = property.default
+      return
+    }
+    if (property.enum?.[0] !== undefined && isJsonValue(property.enum[0])) {
+      params[key] = property.enum[0]
+      return
+    }
+    if (property.type === 'boolean') {
+      params[key] = false
+    }
+  })
   if (hasSchemaProperty(schema, 'factor_weights')) {
     params.factor_weights = DEFAULT_FACTOR_WEIGHTS
   }
-  if (hasSchemaProperty(schema, 'weighting_scheme')) {
-    params.weighting_scheme = enumDefault(schema, 'weighting_scheme', 'equal')
-  }
-  if (hasSchemaProperty(schema, 'liquidity_threshold_usd')) {
-    params.liquidity_threshold_usd = numberDefault(
-      schema,
-      'liquidity_threshold_usd',
-      1_000_000,
-    )
-  }
-  if (hasSchemaProperty(schema, 'sector_map')) {
-    params.sector_map = {}
-  }
 
+  const isStrategy2 = hasSchemaProperty(schema, 'training_warmup_years')
   return {
-    start: '2026-04-01',
+    start: isStrategy2 ? '2018-01-01' : '2026-04-01',
     end: '2026-05-22',
     initial_capital: 1_000_000,
     random_seed: 0,
@@ -64,7 +57,8 @@ export function enumOptions(
   key: string,
   fallback: string[],
 ) {
-  return schemaProperty(schema, key)?.enum ?? fallback
+  const values = schemaProperty(schema, key)?.enum ?? fallback
+  return values.map(String)
 }
 
 export function numberMinimum(schema: JsonSchema, key: string, fallback: number) {
@@ -79,22 +73,20 @@ function schemaProperty(schema: JsonSchema, key: string) {
   return schema.properties?.[key]
 }
 
-function stringDefault(schema: JsonSchema, key: string, fallback: string) {
-  const value = schemaProperty(schema, key)?.default
-  return typeof value === 'string' ? value : fallback
-}
-
-function numberDefault(schema: JsonSchema, key: string, fallback: number) {
-  const value = schemaProperty(schema, key)?.default
-  return typeof value === 'number' ? value : fallback
-}
-
-function booleanDefault(schema: JsonSchema, key: string, fallback: boolean) {
-  const value = schemaProperty(schema, key)?.default
-  return typeof value === 'boolean' ? value : fallback
-}
-
-function enumDefault<T extends string>(schema: JsonSchema, key: string, fallback: T) {
-  const value = schemaProperty(schema, key)?.default
-  return typeof value === 'string' ? (value as T) : fallback
+function isJsonValue(value: unknown): value is StrategyParamsPayload[string] {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return true
+  }
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue)
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).every(isJsonValue)
+  }
+  return false
 }

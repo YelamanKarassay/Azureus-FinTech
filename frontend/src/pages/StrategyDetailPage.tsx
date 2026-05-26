@@ -27,13 +27,15 @@ export function StrategyDetailPage() {
 
   async function submitBacktest() {
     if (!strategy.data || !values) return
+    const dataProvider =
+      strategy.data.id === 'gbm_factors_v1' ? 'public_free' : 'yfinance'
     const response = await createBacktest.mutateAsync({
       strategy_id: strategy.data.id,
       params: values.params,
       start: values.start,
       end: values.end,
       initial_capital: values.initial_capital,
-      data_provider: 'yfinance',
+      data_provider: dataProvider,
       random_seed: values.random_seed,
     })
     setLatestJobId(response.job_id)

@@ -13,6 +13,7 @@ from azureus.data.db import sync_session
 from azureus.data.sources.auditing import AuditingDataSource
 from azureus.data.sources.yfinance_source import (
     YFinanceDataSource,
+    _merge_statement_frames,
     _normalize_yfinance_fundamentals,
 )
 from azureus.pipelines import ingest_fundamentals_free as flow_module
@@ -106,6 +107,28 @@ def test_normalize_yfinance_fundamentals_applies_conservative_reported_lag() -> 
     assert set(df["period_end"]) == {dt.date(2024, 3, 31)}
     assert set(df["reported_date"]) == {dt.date(2024, 6, 29)}
     assert dt.date(2026, 3, 31) not in set(df["period_end"])
+
+
+def test_merge_statement_frames_combines_annual_and_quarterly_columns() -> None:
+    quarterly = pd.DataFrame(
+        {pd.Timestamp("2024-03-31"): [100.0]},
+        index=["Net Income"],
+    )
+    annual = pd.DataFrame(
+        {pd.Timestamp("2023-12-31"): [300.0]},
+        index=["Net Income"],
+    )
+
+    merged = _merge_statement_frames(quarterly, annual)
+
+    df = _normalize_yfinance_fundamentals(
+        "0700.HK",
+        {"income": merged, "balance": pd.DataFrame(), "cashflow": pd.DataFrame()},
+        today=dt.date(2024, 7, 1),
+    )
+
+    assert set(df["period_end"]) == {dt.date(2023, 12, 31), dt.date(2024, 3, 31)}
+    assert (df["reported_date"] <= dt.date(2024, 7, 1)).all()
 
 
 def test_flow_writes_fundamentals_and_lineage_on_success(

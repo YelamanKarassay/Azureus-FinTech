@@ -182,14 +182,16 @@ def _write_ingestion_run(
     rows_inserted: int,
     errors_payload: dict[str, Any] | None,
     config: dict[str, Any],
+    pipeline_name: str = _PIPELINE_NAME,
+    provider: str = PROVIDER_NAME,
 ) -> None:
     """Persist a lineage row. Log loudly if even *this* fails (no silent swallows)."""
     try:
         with sync_session() as session:
             session.add(
                 IngestionRun(
-                    pipeline_name=_PIPELINE_NAME,
-                    provider=PROVIDER_NAME,
+                    pipeline_name=pipeline_name,
+                    provider=provider,
                     table_name=_TABLE_NAME,
                     status=status,
                     started_at=started_at,

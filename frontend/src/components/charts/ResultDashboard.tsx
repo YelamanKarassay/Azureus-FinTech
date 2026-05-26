@@ -45,6 +45,8 @@ export function ResultDashboard({ result }: { result: BacktestResultResponse }) 
     .map((row) => row.rollingSharpe)
     .filter((value): value is number => value !== null)
   const holdingsCountValues = holdingsCount.map((row) => row.count)
+  const icSeries = diagnosticsArray(result.diagnostics?.ic_series)
+  const mlflowRunIds = diagnosticsRunIds(result.diagnostics?.mlflow_run_ids)
 
   return (
     <div className="space-y-6">
@@ -181,6 +183,60 @@ export function ResultDashboard({ result }: { result: BacktestResultResponse }) 
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
+        {icSeries.length > 0 && (
+          <ChartPanel title="Information coefficient">
+            <Plot
+              className="h-72 w-full"
+              data={[
+                {
+                  x: icSeries.map((row) => row.date),
+                  y: icSeries.map((row) => row.ic),
+                  type: 'bar',
+                  marker: { color: '#0f766e' },
+                  name: 'IC',
+                },
+              ]}
+              layout={{
+                ...PLOT_LAYOUT,
+                yaxis: {
+                  ...PLOT_LAYOUT.yaxis,
+                  range: paddedRange(
+                    icSeries.map((row) => row.ic),
+                    0.15,
+                    [-0.2, 0.2],
+                  ),
+                },
+              }}
+              config={PLOT_CONFIG}
+              useResizeHandler
+            />
+          </ChartPanel>
+        )}
+
+        {mlflowRunIds.length > 0 && (
+          <div className="rounded-md border border-zinc-200 bg-white">
+            <div className="border-b border-zinc-200 px-4 py-3">
+              <h2 className="font-semibold">MLflow runs</h2>
+            </div>
+            <div className="divide-y divide-zinc-100">
+              {mlflowRunIds.map(([windowId, runId]) => (
+                <a
+                  key={runId}
+                  className="block px-4 py-3 text-sm text-teal-700 hover:bg-zinc-50"
+                  href={`https://mlflow.azureus.tech/#/experiments/0/runs/${runId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span className="font-mono">{windowId}</span>
+                  <span className="ml-3 font-mono text-xs text-zinc-500">{runId}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-2">
         <div className="rounded-md border border-zinc-200 bg-white">
           <div className="border-b border-zinc-200 px-4 py-3">
             <h2 className="font-semibold">Latest holdings</h2>
@@ -260,6 +316,27 @@ export function ResultDashboard({ result }: { result: BacktestResultResponse }) 
         </div>
       </section>
     </div>
+  )
+}
+
+function diagnosticsArray(value: unknown): Array<{ date: string; ic: number }> {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((row) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return null
+      const date = 'date' in row ? row.date : undefined
+      const ic = 'ic' in row ? row.ic : undefined
+      return typeof date === 'string' && typeof ic === 'number'
+        ? { date, ic }
+        : null
+    })
+    .filter((row): row is { date: string; ic: number } => row !== null)
+}
+
+function diagnosticsRunIds(value: unknown): Array<[string, string]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.entries(value).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string',
   )
 }
 

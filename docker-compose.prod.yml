@@ -82,6 +82,33 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  mlflow:
+    image: azureus-mlflow:prod
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_STATUS_CLEAN: ${GIT_STATUS_CLEAN:-false}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    env_file:
+      - .env.prod
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${MLFLOW_POSTGRES_DB:-mlflow}
+      MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT:-/var/azureus/mlflow_artifacts}
+    command:
+      [
+        "sh",
+        "-c",
+        "mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri \"$${MLFLOW_BACKEND_STORE_URI}\" --default-artifact-root \"$${MLFLOW_ARTIFACT_ROOT}\"",
+      ]
+    volumes:
+      - mlflow_artifacts:/var/azureus/mlflow_artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     env_file:
@@ -97,10 +124,13 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      mlflow:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
+  mlflow_artifacts:
   caddy_data:
   caddy_config:

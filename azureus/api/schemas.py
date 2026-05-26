@@ -45,7 +45,7 @@ class BacktestCreateRequest(_APIModel):
     start: dt.date
     end: dt.date
     initial_capital: float = Field(default=1_000_000.0, gt=0.0)
-    data_provider: Literal["yfinance"]
+    data_provider: Literal["yfinance", "public_free"]
     random_seed: int = Field(default=0, ge=0)
 
     @field_validator("params")
@@ -90,6 +90,26 @@ class BacktestResultResponse(_APIModel):
     equity_curve: list[dict[str, Any]]
     holdings: list[dict[str, Any]]
     trades: list[dict[str, Any]]
+    diagnostics: dict[str, Any] | None = None
+
+
+class MLRunSummary(_APIModel):
+    """Read-only MLflow run summary exposed through the API."""
+
+    run_id: str
+    strategy_id: str | None = None
+    status: str | None = None
+    start_time: dt.datetime | None = None
+    end_time: dt.datetime | None = None
+    metrics: dict[str, float] = Field(default_factory=dict)
+    params: dict[str, str] = Field(default_factory=dict)
+    tags: dict[str, str] = Field(default_factory=dict)
+
+
+class MLRunDetail(MLRunSummary):
+    """Detailed read-only MLflow run metadata."""
+
+    artifact_uri: str | None = None
 
 
 class BacktestSeriesResponse(_APIModel):

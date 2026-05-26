@@ -12,6 +12,7 @@ from azureus.backtesting.results import BacktestResult as EngineBacktestResult
 from azureus.data.db import sync_session
 from azureus.data.models import BacktestResult as BacktestResultRecord
 from azureus.data.models import Job
+from azureus.data.sources.auditing import AuditingDataSource
 from azureus.data.sources.factory import get_data_source
 from azureus.strategies.registry import get_strategy
 
@@ -44,15 +45,19 @@ def _mark_running(job_id: UUID) -> Job:
         return job
 
 
-def _execute_job(job: Job) -> EngineBacktestResult:
+def _execute_job(job: Job) -> tuple[EngineBacktestResult, dict[str, object] | None]:
     strategy_id = str(job.params["strategy_id"])
     strategy_cls = get_strategy(strategy_id)
     strategy_params = strategy_cls.params_model.model_validate(job.params["strategy_params"])
     data_source = get_data_source(job.data_provider)
-    strategy = strategy_cls(strategy_params, data_source)
+    audited_source = AuditingDataSource(data_source)
+    strategy = strategy_cls(strategy_params, audited_source)
+    start = dt.date.fromisoformat(str(job.params["start"]))
+    end = dt.date.fromisoformat(str(job.params["end"]))
+    strategy.fit(start, end)
     config = BacktestConfig(
-        start=dt.date.fromisoformat(str(job.params["start"])),
-        end=dt.date.fromisoformat(str(job.params["end"])),
+        start=start,
+        end=end,
         initial_capital=float(job.params["initial_capital"]),
         universe_id=str(job.params["universe_id"]),
         audit=True,
@@ -63,10 +68,19 @@ def _execute_job(job: Job) -> EngineBacktestResult:
         cost_model=HKCostModel(),
         config=config,
     )
-    return engine.run()
+    result = engine.run()
+    diagnostics = getattr(strategy, "diagnostics", None)
+    if isinstance(diagnostics, dict):
+        result = result.model_copy(update={"diagnostics": diagnostics})
+    run_ids = getattr(strategy, "mlflow_run_ids", None)
+    return result, run_ids if isinstance(run_ids, dict) else None
 
 
-def _mark_completed(job_id: UUID, result: EngineBacktestResult) -> None:
+def _mark_completed(
+    job_id: UUID,
+    result_and_run_ids: tuple[EngineBacktestResult, dict[str, object] | None],
+) -> None:
+    result, mlflow_run_ids = result_and_run_ids
     payload = result.as_dict()
     with sync_session() as session:
         job = session.get(Job, job_id)
@@ -79,8 +93,10 @@ def _mark_completed(job_id: UUID, result: EngineBacktestResult) -> None:
                 equity_curve=payload["equity_curve"],
                 holdings=payload["holdings"],
                 trades=payload["trades"],
+                diagnostics=payload["diagnostics"],
             )
         )
+        job.mlflow_run_ids = mlflow_run_ids
         job.status = "completed"
         job.completed_at = _utc_now()
         job.error_message = None

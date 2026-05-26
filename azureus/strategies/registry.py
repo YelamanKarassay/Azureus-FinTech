@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from azureus.strategies.base import Strategy
 from azureus.strategies.benchmark import EqualWeightedHSIBenchmark
+from azureus.strategies.gbm_factors_v1 import GBMFactorsV1Strategy
 from azureus.strategies.multi_factor_v1 import MultiFactorV1Strategy
 
 _STRATEGIES: dict[str, type[Strategy]] = {}
@@ -31,4 +32,5 @@ def get_strategy(strategy_id: str) -> type[Strategy]:
 
 
 register(EqualWeightedHSIBenchmark)
+register(GBMFactorsV1Strategy)
 register(MultiFactorV1Strategy)

@@ -65,6 +65,15 @@ def test_migration_creates_full_schema(ephemeral_database: str) -> None:
                 text("SELECT indexname FROM pg_indexes WHERE schemaname = 'public'")
             )
         }
+        columns = {
+            row[0]
+            for row in conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'backtest_results'"
+                )
+            )
+        }
     engine.dispose()
 
     missing_tables = REQUIRED_TABLES - tables
@@ -76,6 +85,7 @@ def test_migration_creates_full_schema(ephemeral_database: str) -> None:
 
     missing_indexes = REQUIRED_INDEXES - indexes
     assert not missing_indexes, f"missing indexes: {missing_indexes}"
+    assert "diagnostics" in columns
 
 
 def test_migration_is_reversible(ephemeral_database: str) -> None:
