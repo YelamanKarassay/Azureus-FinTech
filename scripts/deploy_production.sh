@@ -17,15 +17,23 @@ if [[ ! -f "frontend/dist/index.html" ]]; then
   exit 1
 fi
 
-if docker info >/dev/null 2>&1; then
-  COMPOSE=(docker compose)
-else
-  COMPOSE=(sudo docker compose)
-fi
-
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 export GIT_SHA="${GIT_SHA:-unknown}"
 export GIT_STATUS_CLEAN="${GIT_STATUS_CLEAN:-true}"
+
+compose() {
+  if docker info >/dev/null 2>&1; then
+    docker compose "$@"
+  else
+    sudo env \
+      "BUILD_TIME=${BUILD_TIME}" \
+      "GIT_SHA=${GIT_SHA}" \
+      "GIT_STATUS_CLEAN=${GIT_STATUS_CLEAN}" \
+      "AZUREUS_API_IMAGE=${AZUREUS_API_IMAGE:-}" \
+      "AZUREUS_WORKER_IMAGE=${AZUREUS_WORKER_IMAGE:-}" \
+      docker compose "$@"
+  fi
+}
 
 COMPOSE_ARGS=(
   --project-name "${COMPOSE_PROJECT_NAME}"
@@ -34,14 +42,14 @@ COMPOSE_ARGS=(
 )
 
 if [[ -n "${AZUREUS_API_IMAGE:-}" || -n "${AZUREUS_WORKER_IMAGE:-}" ]]; then
-  "${COMPOSE[@]}" "${COMPOSE_ARGS[@]}" pull api worker
+  compose "${COMPOSE_ARGS[@]}" pull api worker
 else
-  "${COMPOSE[@]}" "${COMPOSE_ARGS[@]}" build api worker
+  compose "${COMPOSE_ARGS[@]}" build api worker
 fi
 
-"${COMPOSE[@]}" "${COMPOSE_ARGS[@]}" run --rm api alembic upgrade head
-"${COMPOSE[@]}" "${COMPOSE_ARGS[@]}" up -d --remove-orphans
-"${COMPOSE[@]}" "${COMPOSE_ARGS[@]}" ps
+compose "${COMPOSE_ARGS[@]}" run --rm api alembic upgrade head
+compose "${COMPOSE_ARGS[@]}" up -d --remove-orphans
+compose "${COMPOSE_ARGS[@]}" ps
 
 curl --fail --silent --show-error \
   --retry 12 \
