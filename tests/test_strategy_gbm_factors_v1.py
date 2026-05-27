@@ -10,6 +10,7 @@ from azureus.models.gbm import spearman_ic, strategy2_param_grid
 from azureus.strategies.gbm_factors_v1 import (
     GBMFactorsV1Params,
     GBMFactorsV1Strategy,
+    _eligible_training_features,
     _forward_sector_neutral_labels,
 )
 from azureus.utils.dates import trading_days_between
@@ -133,3 +134,24 @@ def test_forward_labels_are_sector_neutral() -> None:
     assert labels.loc["0001.HK", "label"] > 0.0
     assert labels.loc["0002.HK", "label"] < 0.0
     assert abs(labels.loc["0003.HK", "label"]) < 1e-12
+
+
+def test_eligible_training_features_drop_sparse_columns_without_imputing() -> None:
+    train = pd.DataFrame(
+        {
+            "market_feature": [float(i) for i in range(40)],
+            "sparse_fundamental": [1.0] * 5 + [None] * 35,
+            "constant_feature": [2.0] * 40,
+            "label": [float(i % 3) for i in range(40)],
+        }
+    )
+
+    features, names = _eligible_training_features(
+        train,
+        ["market_feature", "sparse_fundamental", "constant_feature"],
+        min_rows=30,
+    )
+
+    assert names == ["market_feature"]
+    assert features.shape == (40, 1)
+    assert features["market_feature"].isna().sum() == 0
