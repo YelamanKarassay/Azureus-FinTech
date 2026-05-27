@@ -85,6 +85,7 @@ class GBMFactorsV1Strategy(Strategy):
     def fit(self, train_start: dt.date, train_end: dt.date) -> None:
         """Train expanding-window LightGBM models before the backtest runs."""
         params = self.gbm_params
+        min_train_rows = max(30, params.cv_folds * 5)
         windows = expanding_windows(
             start=train_start,
             end=train_end,
@@ -110,24 +111,34 @@ class GBMFactorsV1Strategy(Strategy):
                 (dataset["sample_date"] >= window.train_start)
                 & (dataset["sample_date"] <= window.train_end)
             ]
-            if len(train) < max(30, params.cv_folds * 5):
+            train_features, train_feature_names = _eligible_training_features(
+                train,
+                self._feature_names(),
+                min_rows=min_train_rows,
+            )
+            if train_features.empty or len(train_features) < min_train_rows:
                 continue
-            features = train[self._feature_names()].astype(float)
-            labels = train["label"].astype(float)
+            train_aligned = train.loc[train_features.index]
+            labels = train_aligned["label"].astype(float)
             splitter = PurgedKFold(n_splits=params.cv_folds, embargo_days=params.embargo_days)
             best_params, cv_metrics = select_hyperparams_by_ic(
-                features,
+                train_features,
                 labels,
-                list(train["sample_date"]),
-                list(train["label_end_date"]),
+                list(train_aligned["sample_date"]),
+                list(train_aligned["label_end_date"]),
                 splitter,
                 seed=params.random_seed,
             )
-            model = train_lightgbm_regressor(features, labels, best_params, seed=params.random_seed)
+            model = train_lightgbm_regressor(
+                train_features,
+                labels,
+                best_params,
+                seed=params.random_seed,
+            )
             trained = _TrainedWindow(
                 window=window,
                 model=model,
-                feature_names=list(features.columns),
+                feature_names=train_feature_names,
                 params=best_params,
                 metrics=cv_metrics,
             )
@@ -152,6 +163,12 @@ class GBMFactorsV1Strategy(Strategy):
             if run_id:
                 self.mlflow_run_ids[window.window_id] = run_id
 
+        if not self._trained_windows:
+            self.diagnostics = _empty_diagnostics(
+                "no walk-forward windows had enough complete feature rows"
+            )
+            return
+
         self.diagnostics = _diagnostics(ic_rows, importances, self.mlflow_run_ids)
 
     def rebalance_dates(self, start: dt.date, end: dt.date) -> list[dt.date]:
@@ -170,7 +187,7 @@ class GBMFactorsV1Strategy(Strategy):
         trained = self._model_for(ctx.as_of_date)
         if trained is None:
             return {}
-        frame = self._feature_frame(ctx.universe, ctx.as_of_date)
+        frame = self._feature_frame(ctx.universe, ctx.as_of_date, drop_incomplete=False)
         if frame.empty:
             return {}
         features = frame.reindex(columns=trained.feature_names).dropna(how="any")
@@ -196,7 +213,13 @@ class GBMFactorsV1Strategy(Strategy):
         weight = 1.0 / len(selected)
         return dict.fromkeys(selected, weight)
 
-    def _feature_frame(self, tickers: list[str], as_of_date: dt.date) -> pd.DataFrame:
+    def _feature_frame(
+        self,
+        tickers: list[str],
+        as_of_date: dt.date,
+        *,
+        drop_incomplete: bool = True,
+    ) -> pd.DataFrame:
         liquid = self._liquid_tickers(list(dict.fromkeys(tickers)), as_of_date)
         if not liquid:
             return pd.DataFrame()
@@ -204,14 +227,17 @@ class GBMFactorsV1Strategy(Strategy):
             feature.name: feature.compute(self.data, liquid, as_of_date)
             for feature in self._features
         }
-        raw = feature_matrix(values, tickers=liquid).dropna(how="any")
+        raw = feature_matrix(values, tickers=liquid)
         if raw.empty:
             return raw
         sectors = self._sectors_for(list(raw.index)) if self.gbm_params.sector_neutral else None
         scored = {
             column: sector_rank_zscore(raw[column], sectors=sectors) for column in raw.columns
         }
-        return feature_matrix(scored, tickers=list(raw.index)).dropna(how="any")
+        matrix = feature_matrix(scored, tickers=list(raw.index))
+        if drop_incomplete:
+            return matrix.dropna(how="any")
+        return matrix.dropna(how="all")
 
     def _feature_names(self) -> list[str]:
         return [feature.name for feature in self._features]
@@ -267,7 +293,7 @@ def build_strategy2_dataset(
     params = strategy.gbm_params
     for sample_date in sorted(set(sample_dates)):
         universe = strategy.data.get_universe(params.universe_id, sample_date)
-        features = strategy._feature_frame(universe, sample_date)
+        features = strategy._feature_frame(universe, sample_date, drop_incomplete=False)
         if features.empty:
             continue
         labels = _forward_sector_neutral_labels(
@@ -286,7 +312,58 @@ def build_strategy2_dataset(
         rows.append(frame.reset_index(drop=True))
     if not rows:
         return pd.DataFrame()
-    return pd.concat(rows, ignore_index=True).dropna(how="any")
+    dataset = pd.concat(rows, ignore_index=True)
+    feature_names = strategy._feature_names()
+    return dataset.dropna(subset=["label"]).dropna(how="all", subset=feature_names)
+
+
+def _eligible_training_features(
+    train: pd.DataFrame,
+    feature_names: list[str],
+    *,
+    min_rows: int,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Select non-imputed feature columns that leave enough complete rows.
+
+    Public fundamentals are sparse and PIT-lagged. Rather than filling missing
+    values, Strategy 2 drops unavailable feature columns inside each training
+    window, then trains only on rows complete for the selected columns.
+    """
+    if train.empty:
+        return pd.DataFrame(), []
+
+    candidate_names = [
+        name
+        for name in feature_names
+        if name in train.columns
+        and int(pd.to_numeric(train[name], errors="coerce").notna().sum()) >= min_rows
+        and int(pd.to_numeric(train[name], errors="coerce").nunique(dropna=True)) > 1
+    ]
+    if not candidate_names:
+        return pd.DataFrame(), []
+
+    selected: list[str] = []
+    complete_index = train.index
+    ordered = sorted(
+        candidate_names,
+        key=lambda name: (
+            int(pd.to_numeric(train[name], errors="coerce").notna().sum()),
+            name,
+        ),
+        reverse=True,
+    )
+    for name in ordered:
+        candidate_index = train.loc[complete_index].dropna(subset=[name]).index
+        if len(candidate_index) >= min_rows:
+            selected.append(name)
+            complete_index = candidate_index
+
+    if not selected:
+        return pd.DataFrame(), []
+
+    frame = train.loc[complete_index, selected].apply(pd.to_numeric, errors="coerce")
+    frame = frame.dropna(how="any")
+    return frame.astype(float), selected
 
 
 def _forward_sector_neutral_labels(
@@ -343,9 +420,12 @@ def _oos_ic_rows(trained: _TrainedWindow, dataset: pd.DataFrame) -> list[dict[st
     ]
     rows: list[dict[str, Any]] = []
     for sample_date, group in oos.groupby("sample_date"):
-        features = group[trained.feature_names].astype(float)
-        predictions = pd.Series(trained.model.predict(features), index=group.index)
-        ic = spearman_ic(predictions, group["label"].astype(float))
+        usable = group.dropna(subset=[*trained.feature_names, "label"])
+        if len(usable) < 3:
+            continue
+        features = usable[trained.feature_names].astype(float)
+        predictions = pd.Series(trained.model.predict(features), index=usable.index)
+        ic = spearman_ic(predictions, usable["label"].astype(float))
         if np.isfinite(ic):
             rows.append(
                 {
