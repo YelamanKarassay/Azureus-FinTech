@@ -18,9 +18,12 @@ class MLRunNotFoundError(Exception):
 def list_ml_runs(strategy_id: str | None = None, limit: int = 50) -> list[MLRunSummary]:
     """Return recent MLflow runs, optionally filtered by strategy id."""
     client = _client()
-    filter_string = f"tags.strategy_id = '{strategy_id}'" if strategy_id else ""
+    experiment_ids = _active_experiment_ids(client)
+    if not experiment_ids:
+        return []
+    filter_string = _strategy_filter(strategy_id)
     runs = client.search_runs(
-        experiment_ids=["0"],
+        experiment_ids=experiment_ids,
         filter_string=filter_string,
         max_results=limit,
         order_by=["attributes.start_time DESC"],
@@ -42,6 +45,20 @@ def get_ml_run(run_id: str) -> MLRunDetail:
 def _client() -> MlflowClient:
     settings = get_settings()
     return MlflowClient(tracking_uri=settings.mlflow_tracking_uri)
+
+
+def _active_experiment_ids(client: MlflowClient) -> list[str]:
+    """Return active MLflow experiment ids visible to the tracking client."""
+    experiments = client.search_experiments()
+    return [str(experiment.experiment_id) for experiment in experiments]
+
+
+def _strategy_filter(strategy_id: str | None) -> str:
+    """Return the MLflow filter clause for a strategy id."""
+    if strategy_id is None:
+        return ""
+    escaped_strategy_id = strategy_id.replace("'", "\\'")
+    return f"tags.strategy_id = '{escaped_strategy_id}'"
 
 
 def _summary_from_run(run: Run) -> MLRunSummary:
